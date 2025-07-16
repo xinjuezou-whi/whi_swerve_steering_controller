@@ -45,7 +45,7 @@ Wheel::Wheel(double Radius, const std::array<double, 2>& Position,
     position_ = std::move(Position);
 }
 
-void Wheel::set_rotation_limits(const std::array<double,2>& RotationLimits, bool Limitless)
+void Wheel::set_rotation_limits(const std::array<double, 2>& RotationLimits, bool Limitless)
 {
     limitless_ = Limitless;
     if (limitless_)
@@ -186,6 +186,11 @@ double Wheel::get_command_velocity() const
 bool Wheel::get_limitless() const
 {
     return limitless_;
+}
+
+interval Wheel::get_limits() const
+{
+    return limits_;
 }
 
 void Wheel::set_limitless(bool Limitless)

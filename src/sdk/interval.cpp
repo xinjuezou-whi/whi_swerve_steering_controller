@@ -46,35 +46,55 @@ interval::interval(const std::array<double, 2> &limits, const std::string &type)
 }
 
 
-bool interval::intersect(std::array<double,2>& limits1, const std::array<double,2>& limits2, std::array<int,2>& type1, const std::array<int,2>& type2)
+bool interval::intersect(std::array<double, 2>& limits1, const std::array<double, 2>& limits2,
+    std::array<int, 2>& type1, const std::array<int, 2>& type2)
 {
     bool interval1_point, interval2_point = false;
     if (limits1[0] == limits1[1]) interval1_point = true;
     if (limits2[0] == limits2[1]) interval2_point = true;
 
     if (interval1_point && interval2_point) 
-        return (limits1[0]==limits2[0])? true: false;
-
+    {
+        return (limits1[0] == limits2[0]) ? true: false;
+    }
     else if (interval1_point && !interval2_point)
     {
-        if (limits1[0]==limits2[0]) 
-            return (type2[0]==0)?false:true;
-        else if (limits1[0]==limits2[1]) 
-            return (type2[1]==0)?false:true;
-        else if (limits1[0]>limits2[0] && limits1[0]<limits2[1]) return true;
-        else return false;
+        if (limits1[0] == limits2[0]) 
+        {
+            return (type2[0] == 0) ? false : true;
+        }
+        else if (limits1[0] == limits2[1]) 
+        {
+            return (type2[1] == 0) ? false : true;
+        }
+        else if (limits1[0] > limits2[0] && limits1[0] < limits2[1])
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
-    
     else if (!interval1_point && interval2_point)
     {
-        if (limits2[0]==limits1[0]) 
-            return (type1[0]==0)?false:true;
-        else if (limits2[0]==limits1[1]) 
-            return (type1[1]==0)?false:true;
-        else if (limits2[0]>limits1[0] && limits2[0]<limits1[1]) return true;
-        else return false;
+        if (limits2[0] == limits1[0]) 
+        {
+            return (type1[0] == 0) ? false : true;
+        }
+        else if (limits2[0] == limits1[1]) 
+        {
+            return (type1[1 ]== 0) ? false : true;
+        }
+        else if (limits2[0] > limits1[0] && limits2[0] < limits1[1])
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
-    
     else
     {
         limits_types_intervals_vector_.clear();
@@ -86,26 +106,34 @@ bool interval::intersect(std::array<double,2>& limits1, const std::array<double,
         utils::limits_types_intervals::sort(limits_types_intervals_vector_);                  
                   
         if (limits_types_intervals_vector_[1].limit==limits_types_intervals_vector_[2].limit &&
-                  limits_types_intervals_vector_[1].interval!=limits_types_intervals_vector_[2].interval)
-                  if (limits_types_intervals_vector_[1].type==0 || limits_types_intervals_vector_[2].type==0) return false;
-                  else return true;
+            limits_types_intervals_vector_[1].interval!=limits_types_intervals_vector_[2].interval)
+        {
+            if (limits_types_intervals_vector_[1].type==0 || limits_types_intervals_vector_[2].type==0)
+            {
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+        }
         else if ((limits_types_intervals_vector_[0].interval==0 &&
-         limits_types_intervals_vector_[1].interval==0 &&
-         limits_types_intervals_vector_[2].interval==1 &&
-         limits_types_intervals_vector_[3].interval==1)
-         ||
-        (limits_types_intervals_vector_[0].interval==1 &&
-         limits_types_intervals_vector_[1].interval==1 &&
-         limits_types_intervals_vector_[2].interval==0 &&
-         limits_types_intervals_vector_[3].interval==0))
-         return false;
-
+            limits_types_intervals_vector_[1].interval==0 &&
+            limits_types_intervals_vector_[2].interval==1 &&
+            limits_types_intervals_vector_[3].interval==1) ||
+            (limits_types_intervals_vector_[0].interval==1 &&
+            limits_types_intervals_vector_[1].interval==1 &&
+            limits_types_intervals_vector_[2].interval==0 &&
+            limits_types_intervals_vector_[3].interval==0))
+        {
+            return false;
+        }
         else
+        {
             return true;
+        }
     }
-
 }
-
 
 bool interval::is_intersecting(const interval& another_interval)
 {
@@ -113,7 +141,9 @@ bool interval::is_intersecting(const interval& another_interval)
     const auto size2  = another_interval.limits_.size();
 
     if (size1==1 && size2==1)
+    {
         return intersect(limits_[0], another_interval.limits_[0], types_[0], another_interval.types_[0]);
+    }
     else if (size1==1 && size2==2)
     {
         const auto& b1 =  intersect(limits_[0], another_interval.limits_[0], types_[0], another_interval.types_[0]);

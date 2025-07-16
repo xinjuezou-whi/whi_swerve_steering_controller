@@ -61,6 +61,7 @@ public:
     void set_command_velocity(double Velocity);
     double get_command_velocity() const;
 
+    interval get_limits() const;
     void set_limitless(bool Limitless);
     bool get_limitless() const;
 

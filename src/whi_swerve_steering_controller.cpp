@@ -30,7 +30,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.1.2" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.1.3" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
@@ -227,12 +227,12 @@ namespace whi_swerve_steering_controller
             const double angle = registered_right_steer_handles_[i].position_sta_.get().get_value();
             if (std::isnan(angle))
             {
-                RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i);
+                RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i + left_steer_names_.size());
                 return controller_interface::return_type::ERROR;
             }
-            wheels_[i].set_current_angle(angle); //to keep the wheel object updated
+            wheels_[i + left_steer_names_.size()].set_current_angle(angle); //to keep the wheel object updated
             steerTheta.push_back(angle);
-            directions.push_back(wheels_[i].get_omega_direction());
+            directions.push_back(wheels_[i + left_steer_names_.size()].get_omega_direction());
         }
 
         std::array<double, 2> intersectionPoint ={0,0};
@@ -814,6 +814,9 @@ namespace whi_swerve_steering_controller
         {
             wheels_[i].radius_ = i < left_wheel_names_.size() ? radiusLeft[i] * radiusMultiLeft[i] :
                 radiusRight[i - radiusLeft.size()] * radiusMultiRight[i - radiusLeft.size()];
+#ifndef DEBUG
+            std::cout << "index " << i << " radius: " << wheels_[i].radius_ << std::endl;
+#endif
         }
 
         // steers
@@ -831,6 +834,7 @@ namespace whi_swerve_steering_controller
         {
             leftPositions.push_back(std::array<double, 2>{flatenPosLeft[i * 2], flatenPosLeft[i * 2 + 1]});
         }
+
         auto flatenPosRight = node_->get_parameter("right_steer_locations").as_double_array();
         if (flatenPosRight.size() / 2 != right_steer_names_.size())
         {
@@ -845,6 +849,7 @@ namespace whi_swerve_steering_controller
         {
             rightPositions.push_back(std::array<double, 2>{flatenPosRight[i * 2], flatenPosRight[i * 2 + 1]});
         }
+
         auto offsetsLeft = node_->get_parameter("left_steer_location_offsets").as_double_array();
         if (offsetsLeft.size() < left_steer_names_.size())
         {
@@ -854,6 +859,7 @@ namespace whi_swerve_steering_controller
 
             offsetsLeft.resize(left_steer_names_.size(), 0.0);
         }
+
         auto offsetsRight = node_->get_parameter("right_steer_location_offsets").as_double_array();
         if (offsetsRight.size() < right_steer_names_.size())
         {
@@ -863,6 +869,7 @@ namespace whi_swerve_steering_controller
 
             offsetsRight.resize(right_steer_names_.size(), 0.0);
         }
+
         std::vector<std::array<double, 2>> leftLimits;
         auto flatenLimitsLeft = node_->get_parameter("left_steer_limits").as_double_array();
         if (flatenLimitsLeft.size() / 2 != left_steer_names_.size())
@@ -884,6 +891,7 @@ namespace whi_swerve_steering_controller
                 leftLimits.push_back(std::array<double, 2>{flatenLimitsLeft[i * 2], flatenLimitsLeft[i * 2 + 1]});
             }
         }
+
         std::vector<std::array<double, 2>> rightLimits;
         auto flatenLimitsRight = node_->get_parameter("right_steer_limits").as_double_array();
         if (flatenLimitsRight.size() / 2 != right_steer_names_.size())
@@ -905,14 +913,21 @@ namespace whi_swerve_steering_controller
                 rightLimits.push_back(std::array<double, 2>{flatenLimitsRight[i * 2], flatenLimitsRight[i * 2 + 1]});
             }
         }
-        for (auto i = 0; i < left_steer_names_.size() + right_steer_names_.size(); ++i)
+        
+        int leftSideSize = left_steer_names_.size();
+        for (auto i = 0; i < leftSideSize + right_steer_names_.size(); ++i)
         {
-            wheels_[i].position_ = i < left_steer_names_.size() ? leftPositions[i] : rightPositions[i];
-            wheels_[i].offset_ = i < left_steer_names_.size() ? offsetsLeft[i] : offsetsRight[i];
+            wheels_[i].position_ = i < leftSideSize ? leftPositions[i] : rightPositions[i - leftSideSize];
+            wheels_[i].offset_ = i < leftSideSize ? offsetsLeft[i] : offsetsRight[i - leftSideSize];
             if (!wheels_[i].get_limitless())
             {
-                wheels_[i].set_rotation_limits(i < left_steer_names_.size() ? leftLimits[i] : rightLimits[i]);
+                wheels_[i].set_rotation_limits(i < leftSideSize ? leftLimits[i] : rightLimits[i - leftSideSize]);
             }
+#ifdef DEBUG
+            std::cout << "index " << i << ", position: " << wheels_[i].position_[0] << "," << wheels_[i].position_[1] <<
+                "; offset: " << wheels_[i].offset_ << "; limit:" << std::endl;
+            wheels_[i].get_limits().print();
+#endif
         }
 
         return true;
