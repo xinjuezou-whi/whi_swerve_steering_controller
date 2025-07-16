@@ -18,6 +18,7 @@ ros2 control list_hardware_interfaces
 
 <img width="1170" height="700" alt="image" src="https://github.com/user-attachments/assets/831363a3-31c4-4bb8-b3d3-2384c457e9e3" />
 
+
 Check the status:
 ```
 ros2 control list_controllers
