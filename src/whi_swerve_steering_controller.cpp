@@ -920,6 +920,5 @@ namespace whi_swerve_steering_controller
 }  // namespace whi_swerve_steering_controller
 
 #include "pluginlib/class_list_macros.hpp"
-
 PLUGINLIB_EXPORT_CLASS(whi_swerve_steering_controller::WhiSwerveSteeringController,
     controller_interface::ControllerInterface)
