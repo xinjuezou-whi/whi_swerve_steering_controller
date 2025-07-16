@@ -8,3 +8,13 @@ sudo apt install ros-foxy-ros2-control
 sudo apt install ros-foxy-ros2-controlls
 sudo apt install ros-foxy-controller-interface
 ```
+
+## Verify
+
+Check the status:
+
+```
+ros2 control list_controllers
+```
+
+
