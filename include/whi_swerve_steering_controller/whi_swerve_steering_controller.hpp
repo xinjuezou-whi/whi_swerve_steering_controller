@@ -136,6 +136,7 @@ namespace whi_swerve_steering_controller
         std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>
             realtime_odometry_transform_publisher_{ nullptr };
 
+        std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::Point>> avg_intersection_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::Point>>
             realtime_avg_intersection_publisher_{ nullptr };
 

@@ -30,7 +30,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.1.1" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.1.2" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
@@ -234,6 +234,7 @@ namespace whi_swerve_steering_controller
             steerTheta.push_back(angle);
             directions.push_back(wheels_[i].get_omega_direction());
         }
+
         std::array<double, 2> intersectionPoint ={0,0};
         odometry_.update(wheelsOmega, steerTheta, directions, currentTime, intersectionPoint);
         if (realtime_avg_intersection_publisher_->trylock())
@@ -319,7 +320,7 @@ namespace whi_swerve_steering_controller
             double w_th = atan2(wheel_vy, wheel_vx);
 
             wheels_[i].set_command_velocity(w_w);
-            wheels_[i].set_command_angle(w_th); // this will do the closest angle calculation and set it in the object.
+            wheels_[i].set_command_angle(w_th); // this will do the closest angle calculation and set it in the object
 
             //get the actual w,th to be applied on the wheels.
             double w_applied  = wheels_[i].get_command_velocity();
@@ -332,8 +333,8 @@ namespace whi_swerve_steering_controller
             }
             else
             {
-                registered_right_wheel_handles_[i].velocity_cmd_.get().set_value(w_applied);
-                registered_right_steer_handles_[i].position_cmd_.get().set_value(th_applied);
+                registered_right_wheel_handles_[i - left_wheel_names_.size()].velocity_cmd_.get().set_value(w_applied);
+                registered_right_steer_handles_[i - left_wheel_names_.size()].position_cmd_.get().set_value(th_applied);
             }
         }
 
@@ -527,6 +528,11 @@ namespace whi_swerve_steering_controller
         odometry_publisher_ = node_->create_publisher<nav_msgs::msg::Odometry>("/odom", rclcpp::SystemDefaultsQoS());
         realtime_odometry_publisher_ =
             std::make_shared<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(odometry_publisher_);
+        
+        avg_intersection_publisher_ = node_->create_publisher<geometry_msgs::msg::Point>("avg_intersection",
+            rclcpp::SystemDefaultsQoS());
+        realtime_avg_intersection_publisher_ =
+            std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::Point>>(avg_intersection_publisher_);
 
         auto & odometryMsg = realtime_odometry_publisher_->msg_;
         odometryMsg.header.frame_id = odom_params_.odom_frame_id_;
@@ -913,6 +919,7 @@ namespace whi_swerve_steering_controller
     }
 }  // namespace whi_swerve_steering_controller
 
-#include "class_loader/register_macro.hpp"
-CLASS_LOADER_REGISTER_CLASS(
-    whi_swerve_steering_controller::WhiSwerveSteeringController, controller_interface::ControllerInterface)
+#include "pluginlib/class_list_macros.hpp"
+
+PLUGINLIB_EXPORT_CLASS(whi_swerve_steering_controller::WhiSwerveSteeringController,
+    controller_interface::ControllerInterface)

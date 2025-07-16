@@ -16,7 +16,9 @@ Changelog:
 2025-xx-xx: xxx
 ******************************************************************/
 #pragma once
-#include "whi_swerve_steering_controller/rolling_mean_accumulator.hpp"
+#include <boost/accumulators/accumulators.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+#include <boost/accumulators/statistics/rolling_mean.hpp>
 
 #include <rclcpp/time.hpp>
 
@@ -78,8 +80,10 @@ namespace whi_swerve_steering_controller
 
         // Rolling mean accumulators for the linear and angular velocities:
         size_t velocity_rolling_window_size_{ 10 };
-        RollingMeanAccumulator<double> linear_x_accumulator_;
-        RollingMeanAccumulator<double> linear_y_accumulator_;
-        RollingMeanAccumulator<double> angular_accumulator_;
+        using RollingMeanAcc = boost::accumulators::accumulator_set<double,
+            boost::accumulators::stats<boost::accumulators::tag::rolling_mean>>;
+        RollingMeanAcc linear_x_accumulator_;
+        RollingMeanAcc linear_y_accumulator_;
+        RollingMeanAcc angular_accumulator_;
     };
 }  // namespace whi_swerve_steering_controller

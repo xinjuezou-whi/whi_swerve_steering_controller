@@ -57,8 +57,9 @@ namespace whi_swerve_steering_controller
 {
     Odometry::Odometry(size_t VelocityRollingWindowSize)
         : velocity_rolling_window_size_(VelocityRollingWindowSize),
-          linear_x_accumulator_(VelocityRollingWindowSize), linear_y_accumulator_(VelocityRollingWindowSize),
-          angular_accumulator_(VelocityRollingWindowSize)
+          linear_x_accumulator_(boost::accumulators::tag::rolling_window::window_size = velocity_rolling_window_size_),
+          linear_y_accumulator_(boost::accumulators::tag::rolling_window::window_size = velocity_rolling_window_size_),
+          angular_accumulator_(boost::accumulators::tag::rolling_window::window_size = velocity_rolling_window_size_)
     {}
 
     void Odometry::init(const rclcpp::Time& Time, double InfinityTolerance, double IntersectionTolerance)
@@ -205,13 +206,13 @@ namespace whi_swerve_steering_controller
         timestamp_ = Time;
 
         // Estimate speeds using a rolling mean to filter them out:
-        linear_x_accumulator_.accumulate(linear_x);
-        linear_x_accumulator_.accumulate(linear_y);
-        angular_accumulator_.accumulate(angular);
+        linear_x_accumulator_(linear_x);
+        linear_y_accumulator_(linear_y);
+        angular_accumulator_(angular);
 
-        linear_x_ = linear_x_accumulator_.getRollingMean();
-        linear_y_ = linear_y_accumulator_.getRollingMean();
-        angular_ = angular_accumulator_.getRollingMean();
+        linear_x_ = boost::accumulators::rolling_mean(linear_x_accumulator_);
+        linear_y_ = boost::accumulators::rolling_mean(linear_y_accumulator_);
+        angular_ = boost::accumulators::rolling_mean(angular_accumulator_);
 
         return true;
     }
@@ -248,8 +249,11 @@ namespace whi_swerve_steering_controller
 
     void Odometry::resetAccumulators()
     {
-        linear_x_accumulator_ = RollingMeanAccumulator<double>(velocity_rolling_window_size_);
-        linear_y_accumulator_ = RollingMeanAccumulator<double>(velocity_rolling_window_size_);
-        angular_accumulator_ = RollingMeanAccumulator<double>(velocity_rolling_window_size_);
+        linear_x_accumulator_ = RollingMeanAcc(boost::accumulators::tag::rolling_window::window_size =
+            velocity_rolling_window_size_);
+        linear_y_accumulator_ = RollingMeanAcc(boost::accumulators::tag::rolling_window::window_size =
+            velocity_rolling_window_size_);
+        angular_accumulator_  = RollingMeanAcc(boost::accumulators::tag::rolling_window::window_size =
+            velocity_rolling_window_size_);
     }
 }  // namespace whi_swerve_steering_controller

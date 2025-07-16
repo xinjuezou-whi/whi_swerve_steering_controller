@@ -28,6 +28,7 @@ find_package(rclcpp_lifecycle REQUIRED)
 find_package(realtime_tools REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_msgs REQUIRED)
+find_package(Boost REQUIRED)
 
 ## Declare a C++ library
 FILE(GLOB WHI_SDK_SRC
@@ -54,6 +55,7 @@ ament_target_dependencies(${PROJECT_NAME}
   realtime_tools
   tf2
   tf2_msgs
+  Boost
 )
 
 # Causes the visibility macros to use dllexport rather than dllimport,
