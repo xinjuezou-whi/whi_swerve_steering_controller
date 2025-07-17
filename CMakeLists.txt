@@ -39,7 +39,7 @@ add_library(${PROJECT_NAME} SHARED
   ${WHI_SDK_SRC}
   src/${PROJECT_NAME}.cpp
 )
-target_include_directories(whi_swerve_steering_controller PUBLIC
+target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
@@ -60,7 +60,7 @@ ament_target_dependencies(${PROJECT_NAME}
 
 # Causes the visibility macros to use dllexport rather than dllimport,
 # which is appropriate when building the dll but not consuming it.
-target_compile_definitions(whi_swerve_steering_controller PRIVATE "WHI_SWERVE_STEERING_CONTROLLER_BUILDING_LIBRARY")
+target_compile_definitions(${PROJECT_NAME} PRIVATE "WHI_SWERVE_STEERING_CONTROLLER_BUILDING_LIBRARY")
 
 pluginlib_export_plugin_description_file(controller_interface plugins.xml)
 
