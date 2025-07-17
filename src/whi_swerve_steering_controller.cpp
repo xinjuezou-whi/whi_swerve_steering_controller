@@ -753,9 +753,9 @@ namespace whi_swerve_steering_controller
 
     void WhiSwerveSteeringController::halt()
     {
-        const auto haltWheels = [](auto & wheelHandles)
+        const auto haltWheels = [](auto& WheelHandles)
         {
-            for (const auto & wheel : wheelHandles)
+            for (const auto& wheel : WheelHandles)
             {
                 wheel.velocity_cmd_.get().set_value(0.0);
             }
