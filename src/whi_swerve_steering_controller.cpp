@@ -545,8 +545,7 @@ namespace whi_swerve_steering_controller
             // 0, 7, 14, 21, 28, 35
             const size_t diagonalIndex = NUM_DIMENSIONS * i + i;
             odometryMsg.pose.covariance[diagonalIndex] = odom_params_.pose_covariance_diagonal_[i];
-            odometryMsg.twist.covariance[diagonalIndex] =
-            odom_params_.twist_covariance_diagonal_[i];
+            odometryMsg.twist.covariance[diagonalIndex] = odom_params_.twist_covariance_diagonal_[i];
         }
 
         // initialize transform publisher and message
