@@ -307,7 +307,7 @@ namespace whi_swerve_steering_controller
             realtime_limited_velocity_publisher_->unlockAndPublish();
         }
 
-        // compute wheels velocities and set wheels velocities
+        // compute wheels velocities and steer positions and set them
         for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
         {
             double wheel_vx = command.twist.linear.x - command.twist.angular.z * wheels_[i].position_[1]
@@ -322,7 +322,7 @@ namespace whi_swerve_steering_controller
             wheels_[i].set_command_velocity(w_w);
             wheels_[i].set_command_angle(w_th); // this will do the closest angle calculation and set it in the object
 
-            //get the actual w,th to be applied on the wheels.
+            // get the actual w, th to be applied on the wheels and steers
             double w_applied  = wheels_[i].get_command_velocity();
             double th_applied = wheels_[i].get_command_angle();
 

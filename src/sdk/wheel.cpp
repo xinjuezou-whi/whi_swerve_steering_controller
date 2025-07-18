@@ -69,16 +69,16 @@ bool Wheel::set_command_angle(double Target)
         supplementary2 = utils::isclose(supplementary, M_PI) ? -M_PI : M_PI;
     }
 
-    auto interval1  = interval(std::array<double, 2>({theta_, Target}), "close" );
-    auto interval2  = interval(std::array<double, 2>({theta_, supplementary}), "close" );
+    auto interval1  = interval(std::array<double, 2>({theta_, Target}), "close");
+    auto interval2  = interval(std::array<double, 2>({theta_, supplementary}), "close");
     auto interval3  = interval1.complement();
     auto interval4  = interval2.complement();
     
-    interval interval5({-M_PI_2, M_PI_2}, "open"); //just initialized with any value, gonna be overwritten when used 
-    interval interval6({-M_PI_2, M_PI_2}, "open"); //just initialized with any value, gonna be overwritten when used 
+    interval interval5({-M_PI_2, M_PI_2}, "open"); // just initialized with any value, gonna be overwritten when used 
+    interval interval6({-M_PI_2, M_PI_2}, "open"); // just initialized with any value, gonna be overwritten when used 
     if (triple_point)
     {
-        interval5  = interval(std::array<double, 2>({theta_, supplementary2}), "close" );
+        interval5  = interval(std::array<double, 2>({theta_, supplementary2}), "close");
         interval6  = interval5.complement();
     }
     std::vector<double> lengths = {interval1.len(), interval3.len(), interval2.len(), interval4.len()};
@@ -88,8 +88,8 @@ bool Wheel::set_command_angle(double Target)
     {
         if (triple_point)
         {
-             lengths.push_back(interval5.len());
-             lengths.push_back(interval6.len());
+            lengths.push_back(interval5.len());
+            lengths.push_back(interval6.len());
         }
 
         min_arg = std::distance(lengths.begin(), std::min_element(lengths.begin(), lengths.end()));        
@@ -121,7 +121,7 @@ bool Wheel::set_command_angle(double Target)
             interval4.is_intersecting(limits_)};
         if (intersects[0] && intersects[1] && intersects[2] && intersects[3])
         {
-            //print something
+            // print something
             return false;
         }
         lengths = {
@@ -154,7 +154,6 @@ bool Wheel::set_command_angle(double Target)
             this->steering_angle_ = supplementary2;
             return true;
         }
-
     }
 }
 
