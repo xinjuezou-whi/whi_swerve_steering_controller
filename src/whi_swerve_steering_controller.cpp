@@ -813,7 +813,7 @@ namespace whi_swerve_steering_controller
         {
             wheels_[i].radius_ = i < left_wheel_names_.size() ? radiusLeft[i] * radiusMultiLeft[i] :
                 radiusRight[i - radiusLeft.size()] * radiusMultiRight[i - radiusLeft.size()];
-#ifndef DEBUG
+#ifdef DEBUG
             std::cout << "index " << i << " radius: " << wheels_[i].radius_ << std::endl;
 #endif
         }
