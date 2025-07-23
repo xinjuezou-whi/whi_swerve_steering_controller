@@ -197,17 +197,20 @@ namespace whi_swerve_steering_controller
             return false;
         }
 
-        linear_x = linear_x_vh * cos(heading_) - linear_y_vh * sin(heading_);
-        linear_y = linear_x_vh * sin(heading_) + linear_y_vh * cos(heading_);
+#ifdef DEBUG
+        std::cout << "heading: " << heading_ << std::endl;
+        std::cout << "linear_x_vh: " << linear_x_vh << ", linear_y_vh: " << linear_y_vh << std::endl;
+        std::cout << "linear_x: " << linear_x_ << ", linear_y:" << linear_y_ << ", angular: " << angular_ << std::endl; 
+#endif
 
         // Integrate odometry:
-        integrateExact(linear_x_, linear_y_, angular_, dt);
+        auto linearWord = integrateExact(linear_x_vh, linear_y_vh, angular, dt);
 
         timestamp_ = Time;
 
         // Estimate speeds using a rolling mean to filter them out:
-        linear_x_accumulator_(linear_x);
-        linear_y_accumulator_(linear_y);
+        linear_x_accumulator_(linearWord[0]);
+        linear_y_accumulator_(linearWord[1]);
         angular_accumulator_(angular);
 
         linear_x_ = boost::accumulators::rolling_mean(linear_x_accumulator_);
@@ -237,14 +240,17 @@ namespace whi_swerve_steering_controller
         resetAccumulators();
     }
 
-    void Odometry::integrateExact(double LinearX, double LinearY, double Angular, const double Dt)
+    std::array<double, 2> Odometry::integrateExact(double LinearRobotX, double LinearRobotY, double AngularRobot, const double Dt)
     {
-        const double direction = heading_ + Angular;
-
         /// Runge-Kutta 2nd order integration:
-        x_ += (LinearX * cos(direction) - LinearY * sin(direction)) * Dt;
-        y_ += (LinearX * sin(direction) + LinearY * cos(direction)) * Dt;
-        heading_ += Angular * Dt;
+        double linearX = LinearRobotX * cos(heading_) - LinearRobotY * sin(heading_);
+        double linearY = LinearRobotX * sin(heading_) + LinearRobotY * cos(heading_);
+
+        x_ += linearX * Dt;
+        y_ += linearY * Dt;
+        heading_ += AngularRobot * Dt;
+
+        return std::array<double, 2>{linearX, linearY};
     }
 
     void Odometry::resetAccumulators()

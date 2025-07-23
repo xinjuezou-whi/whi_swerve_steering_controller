@@ -47,7 +47,7 @@ namespace whi_swerve_steering_controller
         void setVelocityRollingWindowSize(size_t VelocityRollingWindowSize);
 
     private:
-        void integrateExact(double LinearX, double LinearY, double Angular, const double Dt);
+        std::array<double, 2> integrateExact(double LinearRobotX, double LinearRobotY, double AngularRobot, const double Dt);
         void resetAccumulators();
 
         // Current timestamp:

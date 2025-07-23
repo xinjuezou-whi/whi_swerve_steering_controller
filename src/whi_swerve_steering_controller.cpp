@@ -30,7 +30,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.1.3" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.2.0" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
@@ -220,6 +220,9 @@ namespace whi_swerve_steering_controller
             }
             wheels_[i].set_current_angle(angle); //to keep the wheel object updated
             steerTheta.push_back(angle);
+#ifdef DEBUG
+            std::cout << "angle of " << left_steer_names_[i] << ": " << angle << std::endl;
+#endif
             directions.push_back(wheels_[i].get_omega_direction());
         }
         for (size_t i = 0; i < right_steer_names_.size(); ++i)
@@ -232,6 +235,9 @@ namespace whi_swerve_steering_controller
             }
             wheels_[i + left_steer_names_.size()].set_current_angle(angle); //to keep the wheel object updated
             steerTheta.push_back(angle);
+#ifdef DEBUG
+            std::cout << "angle of " << right_steer_names_[i] << ": " << angle << std::endl;
+#endif
             directions.push_back(wheels_[i + left_steer_names_.size()].get_omega_direction());
         }
 
