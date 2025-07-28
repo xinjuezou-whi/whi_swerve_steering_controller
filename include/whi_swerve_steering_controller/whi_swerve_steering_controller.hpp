@@ -30,7 +30,6 @@ Changelog:
 #include <hardware_interface/handle.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
-#include <geometry_msgs/msg/point.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_msgs/msg/tf_message.hpp>
 
@@ -124,8 +123,6 @@ namespace whi_swerve_steering_controller
             std::string odom_frame_id_{ "odom" };
             std::array<double, 6> pose_covariance_diagonal_;
             std::array<double, 6> twist_covariance_diagonal_;
-            double infinity_tol_{ 1000.0 };
-            double intersection_tol_{ 0.1 };
         } odom_params_;
 
         Odometry odometry_;
@@ -135,10 +132,6 @@ namespace whi_swerve_steering_controller
         std::shared_ptr<rclcpp::Publisher<tf2_msgs::msg::TFMessage>> odometry_transform_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>
             realtime_odometry_transform_publisher_{ nullptr };
-
-        std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::Point>> avg_intersection_publisher_{ nullptr };
-        std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::Point>>
-            realtime_avg_intersection_publisher_{ nullptr };
 
         realtime_tools::RealtimeBox<std::shared_ptr<Twist>> received_velocity_msg_ptr_{nullptr};
         std::queue<Twist> previous_commands_; // last two commands

@@ -51,7 +51,8 @@ All text above must be included in any redistribution.
 
 ******************************************************************/
 #include "whi_swerve_steering_controller/odometry.hpp"
-#include "whi_swerve_steering_controller/utils.h"
+
+#include <iostream>
 
 namespace whi_swerve_steering_controller
 {
@@ -62,151 +63,38 @@ namespace whi_swerve_steering_controller
           angular_accumulator_(boost::accumulators::tag::rolling_window::window_size = velocity_rolling_window_size_)
     {}
 
-    void Odometry::init(const rclcpp::Time& Time, double InfinityTolerance, double IntersectionTolerance)
+    void Odometry::init(const rclcpp::Time& Time)
     {
         // Reset accumulators and timestamp:
         resetAccumulators();
         timestamp_ = Time;
-        inf_tol_  = InfinityTolerance;
-        intersection_tol_ = IntersectionTolerance;
     }
 
-    bool Odometry::update(std::vector<double> WheelsOmega, std::vector<double> SteersTheta,
-        std::vector<int> Directions, const rclcpp::Time& Time, std::array<double, 2>& IntersectionPoint)
+    bool Odometry::update(std::vector<double> WheelAngular, std::vector<double> SteersAngle, const rclcpp::Time& Time)
     {
         // We cannot estimate the speed with very small time intervals:
         const double dt = Time.seconds() - timestamp_.seconds();
+        timestamp_ = Time;
         if (dt < 0.0001)
         {
             return false;  // Interval too small to integrate with
         }
 
+        double linearXSum = 0.0, linearYSum = 0.0, numerator = 0.0, denominator = 0.0;
         for (size_t i = 0; i < wheels_num_; ++i)
         {
-            WheelsOmega[i] = fabs(WheelsOmega[i]);
-            if (Directions[i] < 0) // i think this will make a problem when actual omega is too +ve big and the command omega is -ve 
-            {                    // as it will take time to reverse and signal will be wrong all this
-                SteersTheta[i] = utils::theta_map(SteersTheta[i] + M_PI);
-            }
+            auto wheelLinearX = WheelAngular[i] * wheels_radii_[i] * cos(SteersAngle[i]);
+            auto wheelLinearY = WheelAngular[i] * wheels_radii_[i] * sin(SteersAngle[i]);
+            linearXSum += wheelLinearX;
+            linearYSum += wheelLinearY;
+            numerator += wheelLinearY * steers_positions_[i][0] - wheelLinearX * steers_positions_[i][1];
+            denominator += pow(steers_positions_[i][0], 2) + pow(steers_positions_[i][1], 2);
         }
+        double linearX = linearXSum / wheels_num_;
+        double linearY = linearYSum / wheels_num_;
+        double angular = numerator / denominator;
 
-        //intersection point 
-        double theta1, m1, b1, theta, m, b;
-        std::vector<std::array<double, 2>> intersections;
-        for (size_t j = 0; j < wheels_num_ - 1; ++j)
-        {
-            theta1 = utils::theta_map(SteersTheta[j] + M_PI_2);
-            m1 = tan(theta1);
-            b1 = steers_positions_[j][1]- m1 * steers_positions_[j][0];
-            for (size_t i = j + 1; i < wheels_num_; ++i)
-            {
-                theta = utils::theta_map(SteersTheta[i] + M_PI_2);
-                m = tan(theta);
-                b = steers_positions_[i][1] - m * steers_positions_[i][0];
-
-                if (utils::isclose(theta1, theta) || utils::isclose(theta1, theta, 0.00001, 2 * M_PI))
-                {
-                    intersections.push_back({INFINITY,INFINITY});
-                }
-                else if (utils::isclose(theta1, theta, 0.00001, M_PI) || utils::isclose(theta1, theta, 0.00001, -M_PI))
-                {
-                    intersections.push_back({(steers_positions_[j][0] + steers_positions_[i][0]) / 2,
-                        (steers_positions_[j][1] + steers_positions_[i][1]) / 2});
-                }
-                else
-                {
-                    if (fabs(((b1 - b) / (m - m1))) > inf_tol_ || fabs(((m * b1 - m1 * b) / (m - m1))) > inf_tol_)
-                    {
-                        intersections.push_back({INFINITY, INFINITY});
-                    }
-                    else
-                    {
-                        intersections.push_back({((b1 - b) / (m - m1)), ((m * b1 - m1 * b) / (m - m1))});
-                    }
-                }
-            }
-        }
-
-        double linear_x, linear_x_vh, linear_y, linear_y_vh, angular;
-        std::array<double, 2> average_intersection{0, 0};
-
-        // detecting if all or some of the intersections is inf
-        bool inf_all = true;
-        for (const auto& it: intersections)
-        {
-            if (!(std::isinf(it[0]) || std::isinf(it[1])))
-            {
-                inf_all = false;
-                break;
-            }
-        }
-        if (inf_all)
-        {
-            angular = 0;
-            for (int i = 0; i < wheels_num_; ++i)
-            {
-                linear_x_vh += (WheelsOmega[i] * wheels_radii_[i] * cos(SteersTheta[i])) / wheels_num_;
-                linear_y_vh += (WheelsOmega[i] * wheels_radii_[i] * sin(SteersTheta[i])) / wheels_num_;
-                IntersectionPoint[0] = INFINITY; //just to visualize it on rqt_plot through the publisher
-                IntersectionPoint[1] = INFINITY; //just to visualize it on rqt_plot through the publisher
-            }
-        }
-        else
-        {
-            for (size_t i = 0; i < intersections.size(); ++i)
-            {
-                if ((fabs(intersections[i][0] - intersections[i-1][0]) > intersection_tol_ ||
-                    fabs(intersections[i][1] - intersections[i-1][1]) > intersection_tol_) && i != 0)
-                {
-                    // intersections are not close enough to get an average, dropping
-                    return false;
-                }
-                else
-                {
-                    average_intersection[0] += intersections[i][0] / intersections.size();
-                    average_intersection[1] += intersections[i][1] / intersections.size();
-                }
-            }
-            IntersectionPoint[0] = average_intersection[0]; //just to visualize it on rqt_plot through the publisher
-            IntersectionPoint[1] = average_intersection[1]; //just to visualize it on rqt_plot through the publisher
-            for (int i = 0; i < wheels_num_; ++i)
-            {
-                // ignore the wheel if the intersection is on its center of rotation
-                if (utils::isclose(average_intersection[0], steers_positions_[i][0]) &&
-                    utils::isclose(average_intersection[1], steers_positions_[i][1]))
-                {
-                    continue;
-                }
-                auto icr_wh = std::array<double, 2>{steers_positions_[i][0] - average_intersection[0],
-                    steers_positions_[i][1] - average_intersection[1]};
-
-                angular += (WheelsOmega[i] * wheels_radii_[i] * sin(SteersTheta[i])) / (2 * icr_wh[0]) -
-                    (WheelsOmega[i]  *wheels_radii_[i] * cos(SteersTheta[i])) / (2 * icr_wh[1]);
-            }
-            angular /= wheels_num_; 
-            linear_x_vh = average_intersection[1] * angular;
-            linear_y_vh = -1 * average_intersection[0] * angular;
-        }
-
-        if (std::isnan(linear_x_vh) || std::isnan(linear_y_vh) || std::isnan(angular))
-        {
-            return false;
-        }
-        if (std::isinf(linear_x_vh) || std::isinf(linear_y_vh) || std::isinf(angular))
-        {
-            return false;
-        }
-
-#ifdef DEBUG
-        std::cout << "heading: " << heading_ << std::endl;
-        std::cout << "linear_x_vh: " << linear_x_vh << ", linear_y_vh: " << linear_y_vh << std::endl;
-        std::cout << "linear_x: " << linear_x_ << ", linear_y:" << linear_y_ << ", angular: " << angular_ << std::endl; 
-#endif
-
-        // Integrate odometry:
-        auto linearWord = integrateExact(linear_x_vh, linear_y_vh, angular, dt);
-
-        timestamp_ = Time;
+        auto linearWord = integrateExact(linearX, linearY, angular, dt);
 
         // Estimate speeds using a rolling mean to filter them out:
         linear_x_accumulator_(linearWord[0]);
@@ -240,17 +128,23 @@ namespace whi_swerve_steering_controller
         resetAccumulators();
     }
 
-    std::array<double, 2> Odometry::integrateExact(double LinearRobotX, double LinearRobotY, double AngularRobot, const double Dt)
+    std::array<double, 2> Odometry::integrateExact(double LinearX, double LinearY, double Angular, const double Dt)
     {
-        /// Runge-Kutta 2nd order integration:
-        double linearX = LinearRobotX * cos(heading_) - LinearRobotY * sin(heading_);
-        double linearY = LinearRobotX * sin(heading_) + LinearRobotY * cos(heading_);
+        heading_ += Angular * Dt;
 
-        x_ += linearX * Dt;
-        y_ += linearY * Dt;
-        heading_ += AngularRobot * Dt;
+        double linearGlobalX = LinearX * cos(heading_) - LinearY * sin(heading_);
+        double linearGlobalY = LinearX * sin(heading_) + LinearY * cos(heading_);
+        x_ += linearGlobalX * Dt;
+        y_ += linearGlobalY * Dt;
+        
+#ifdef DEBUG
+        std::cout << "linearRobotX:" << LinearX << ", linearRobotY: " << LinearY << ", angularRobot: " << Angular << std::endl;
+        std::cout << "LinearGlobalX: " << linearGlobalX << ", linearGlobalY: " << linearGlobalY <<
+            "heading: " << heading_ << std::endl;
+        std::cout << "x: " << x_ << ", y: " << y_ << std::endl;
+#endif
 
-        return std::array<double, 2>{linearX, linearY};
+        return std::array<double, 2>{linearGlobalX, linearGlobalY};
     }
 
     void Odometry::resetAccumulators()

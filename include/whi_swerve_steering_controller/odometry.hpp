@@ -31,9 +31,8 @@ namespace whi_swerve_steering_controller
     public:
         explicit Odometry(size_t VelocityRollingWindowSize = 10);
 
-        void init(const rclcpp::Time& Time, double InfinityTolerance, double IntersectionTolerance);
-        bool update(std::vector<double> WheelsOmega, std::vector<double> SteersTheta,
-            std::vector<int> Directions, const rclcpp::Time& Time, std::array<double, 2>& IntersectionPoint);
+        void init(const rclcpp::Time& Time);
+        bool update(std::vector<double> WheelsAngular, std::vector<double> SteersAngle, const rclcpp::Time& Time);
         void resetOdometry();
 
         double getX() const { return x_; }
@@ -47,7 +46,7 @@ namespace whi_swerve_steering_controller
         void setVelocityRollingWindowSize(size_t VelocityRollingWindowSize);
 
     private:
-        std::array<double, 2> integrateExact(double LinearRobotX, double LinearRobotY, double AngularRobot, const double Dt);
+        std::array<double, 2> integrateExact(double LinearX, double LinearY, double Angular, const double Dt);
         void resetAccumulators();
 
         // Current timestamp:
@@ -65,18 +64,9 @@ namespace whi_swerve_steering_controller
         double linear_y_{ 0.0 }; //   [m/s]
         double angular_{ 0.0 };  // [rad/s]
 
-        double inf_tol_{ 1000 };
-        double intersection_tol_{ 0.1 };
-
         // Wheel kinematic parameters [m]:
-        double left_wheel_radius_;
-        double right_wheel_radius_;
         std::vector<double> wheels_radii_;
         std::vector<std::array<double,2>> steers_positions_;
-
-        // Previous wheel position/state [rad]:
-        std::vector<double> wheels_old_pomega_;
-        std::vector<double> steers_old_theta_;
 
         // Rolling mean accumulators for the linear and angular velocities:
         size_t velocity_rolling_window_size_{ 10 };

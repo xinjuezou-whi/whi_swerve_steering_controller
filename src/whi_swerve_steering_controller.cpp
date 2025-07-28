@@ -21,6 +21,11 @@ All text above must be included in any redistribution.
 
 namespace whi_swerve_steering_controller
 {
+    template <typename T> int signOf(T Val)
+    {
+        return (T(0) < Val) - (Val < T(0));
+    }
+
     using controller_interface::interface_configuration_type;
     using controller_interface::InterfaceConfiguration;
 
@@ -30,7 +35,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.2.0" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.2.1" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
@@ -65,8 +70,6 @@ namespace whi_swerve_steering_controller
             auto_declare<std::string>("base_frame_id", odom_params_.base_frame_id_);
             auto_declare<std::vector<double>>("pose_covariance_diagonal", std::vector<double>());
             auto_declare<std::vector<double>>("twist_covariance_diagonal", std::vector<double>());
-            auto_declare<double>("infinity_tolerance", odom_params_.infinity_tol_);
-            auto_declare<double>("intersection_tolerance", odom_params_.intersection_tol_);
             auto_declare<bool>("enable_odom_tf", odom_params_.enable_odom_tf_);
 
             auto_declare<double>("cmd_vel_timeout", cmd_vel_timeout_.count() / 1000.0);
@@ -188,74 +191,80 @@ namespace whi_swerve_steering_controller
         double& linearCommandY = command.twist.linear.y;
         double& angularCommand = command.twist.angular.z;
 
-        std::vector<double> wheelsOmega, steerTheta;
-	    std::vector<int> directions;
+        auto isZero = [](double Value, double Epsilon = 1e-9) -> bool
+        {
+            return std::abs(Value) < Epsilon;
+        };
+
+        std::vector<double> wheelsAngular, steerAngle;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
-            const double omega = registered_left_wheel_handles_[i].velocity_sta_.get().get_value();
-            if (std::isnan(omega))
+            const double angular = registered_left_wheel_handles_[i].velocity_sta_.get().get_value();
+            if (std::isnan(angular))
             {
-                RCLCPP_ERROR(logger, "wheel omega is invalid for index [%zu] on left side", i);
+                RCLCPP_ERROR(logger, "wheel angular is invalid for index [%zu] on left side", i);
                 return controller_interface::return_type::ERROR;
             }
-            wheelsOmega.push_back(omega);
+            wheelsAngular.push_back(angular);
         }
         for (size_t i = 0; i < right_wheel_names_.size(); ++i)
         {
-            const double omega = registered_right_wheel_handles_[i].velocity_sta_.get().get_value();
-            if (std::isnan(omega))
+            const double angular = registered_right_wheel_handles_[i].velocity_sta_.get().get_value();
+            if (std::isnan(angular))
             {
-                RCLCPP_ERROR(logger, "wheel omega is invalid for index [%zu] on right side", i);
+                RCLCPP_ERROR(logger, "wheel angular is invalid for index [%zu] on right side", i);
                 return controller_interface::return_type::ERROR;
             }
-            wheelsOmega.push_back(omega);
+            wheelsAngular.push_back(angular);
         }
         for (size_t i = 0; i < left_steer_names_.size(); ++i)
         {
-            const double angle = registered_left_steer_handles_[i].position_sta_.get().get_value();
+            double angle = registered_left_steer_handles_[i].position_sta_.get().get_value();
             if (std::isnan(angle))
             {
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on left side", i);
                 return controller_interface::return_type::ERROR;
             }
-            wheels_[i].set_current_angle(angle); //to keep the wheel object updated
-            steerTheta.push_back(angle);
+
+            // restore the normal coordinate
+            if (!isZero(angle) && wheelsAngular[i] < 0.0)
+            {
+                angle -= signOf(angle) * M_PI;
+                wheelsAngular[i] *= -1.0;
+            }
+            steerAngle.push_back(angle);
 #ifdef DEBUG
             std::cout << "angle of " << left_steer_names_[i] << ": " << angle << std::endl;
 #endif
-            directions.push_back(wheels_[i].get_omega_direction());
         }
         for (size_t i = 0; i < right_steer_names_.size(); ++i)
         {
-            const double angle = registered_right_steer_handles_[i].position_sta_.get().get_value();
+            double angle = registered_right_steer_handles_[i].position_sta_.get().get_value();
             if (std::isnan(angle))
             {
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i + left_steer_names_.size());
                 return controller_interface::return_type::ERROR;
             }
-            wheels_[i + left_steer_names_.size()].set_current_angle(angle); //to keep the wheel object updated
-            steerTheta.push_back(angle);
+
+            // restore the normal coordinate
+            if (!isZero(angle) && wheelsAngular[i + left_steer_names_.size()] < 0.0)
+            {
+                angle -= signOf(angle) * M_PI;
+                wheelsAngular[i + left_steer_names_.size()] *= -1.0;
+            }
+            steerAngle.push_back(angle);
 #ifdef DEBUG
             std::cout << "angle of " << right_steer_names_[i] << ": " << angle << std::endl;
 #endif
-            directions.push_back(wheels_[i + left_steer_names_.size()].get_omega_direction());
         }
 
-        std::array<double, 2> intersectionPoint ={0,0};
-        odometry_.update(wheelsOmega, steerTheta, directions, currentTime, intersectionPoint);
-        if (realtime_avg_intersection_publisher_->trylock())
-        {
-            realtime_avg_intersection_publisher_->msg_.x = intersectionPoint[0];
-            realtime_avg_intersection_publisher_->msg_.y = intersectionPoint[1];
-
-            realtime_avg_intersection_publisher_->unlockAndPublish();
-        }
+        odometry_.update(wheelsAngular, steerAngle, currentTime);
 
         // publish odometry message
         tf2::Quaternion orientation;
         orientation.setRPY(0.0, 0.0, odometry_.getHeading());
 
-        if (previous_publish_timestamp_ + publish_period_ < currentTime)
+        if (previous_publish_timestamp_ < currentTime)
         {
             previous_publish_timestamp_ += publish_period_;
 
@@ -316,31 +325,36 @@ namespace whi_swerve_steering_controller
         // compute wheels velocities and steer positions and set them
         for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
         {
-            double wheel_vx = command.twist.linear.x - command.twist.angular.z * wheels_[i].position_[1]
-                - wheels_[i].offset_ * cos(wheels_[i].get_current_angle());
-            double wheel_vy = command.twist.linear.y + command.twist.angular.z * wheels_[i].position_[0]
-                + wheels_[i].offset_ * sin(wheels_[i].get_current_angle());
+            double wheelLinearX = command.twist.linear.x - command.twist.angular.z * wheels_[i].position_[1]
+                - wheels_[i].offset_ * cos(steerAngle[i]);
+            double wheelLinearY = command.twist.linear.y + command.twist.angular.z * wheels_[i].position_[0]
+                + wheels_[i].offset_ * sin(steerAngle[i]);
             
-            // get the required wheel omega and the required wheel steering angle 
-            double w_w  = sqrt(pow(wheel_vx, 2) + pow(wheel_vy, 2)) / wheels_[i].radius_;
-            double w_th = atan2(wheel_vy, wheel_vx);
+            // get the required wheel angular and the required steering angle 
+            double wheelAngular  = sqrt(pow(wheelLinearX, 2) + pow(wheelLinearY, 2)) / wheels_[i].radius_;
+            double steerAngle = atan2(wheelLinearY, wheelLinearX);
 
-            wheels_[i].set_command_velocity(w_w);
-            wheels_[i].set_command_angle(w_th); // this will do the closest angle calculation and set it in the object
-
-            // get the actual w, th to be applied on the wheels and steers
-            double w_applied  = wheels_[i].get_command_velocity();
-            double th_applied = wheels_[i].get_command_angle();
+#ifdef DEBUG
+            std::cout << "steer[" << i << "] angle: " << steerAngle << ", angular: " << wheelAngular << std::endl;
+#endif
+            if (fabs(steerAngle) > 0.5 * M_PI)
+            {
+                steerAngle -= signOf(steerAngle) * M_PI;
+                wheelAngular *= -1.0;
+            }
+#ifdef DEBUG
+            std::cout << "steer[" << i << "] normal angle: " << steerAngle << ", normal angular: " << wheelAngular << std::endl;
+#endif
 
             if (i < left_wheel_names_.size())
             {
-                registered_left_wheel_handles_[i].velocity_cmd_.get().set_value(w_applied);
-                registered_left_steer_handles_[i].position_cmd_.get().set_value(th_applied);
+                registered_left_wheel_handles_[i].velocity_cmd_.get().set_value(wheelAngular);
+                registered_left_steer_handles_[i].position_cmd_.get().set_value(steerAngle);
             }
             else
             {
-                registered_right_wheel_handles_[i - left_wheel_names_.size()].velocity_cmd_.get().set_value(w_applied);
-                registered_right_steer_handles_[i - left_wheel_names_.size()].position_cmd_.get().set_value(th_applied);
+                registered_right_wheel_handles_[i - left_wheel_names_.size()].velocity_cmd_.get().set_value(wheelAngular);
+                registered_right_steer_handles_[i - left_wheel_names_.size()].position_cmd_.get().set_value(steerAngle);
             }
         }
 
@@ -398,9 +412,7 @@ namespace whi_swerve_steering_controller
             steerPositions.push_back(it.position_);
         }
 
-        odom_params_.infinity_tol_ = node_->get_parameter("infinity_tolerance").as_double();
-        odom_params_.intersection_tol_ = node_->get_parameter("intersection_tolerance").as_double();
-        odometry_.init(node_->get_clock()->now(), odom_params_.infinity_tol_, odom_params_.intersection_tol_);
+        odometry_.init(node_->get_clock()->now());
         odometry_.setWheelsParams(radii, steerPositions);
         odometry_.setVelocityRollingWindowSize(
             node_->get_parameter("velocity_rolling_window_size").as_int());
@@ -534,11 +546,6 @@ namespace whi_swerve_steering_controller
         odometry_publisher_ = node_->create_publisher<nav_msgs::msg::Odometry>("/odom", rclcpp::SystemDefaultsQoS());
         realtime_odometry_publisher_ =
             std::make_shared<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(odometry_publisher_);
-        
-        avg_intersection_publisher_ = node_->create_publisher<geometry_msgs::msg::Point>("avg_intersection",
-            rclcpp::SystemDefaultsQoS());
-        realtime_avg_intersection_publisher_ =
-            std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::Point>>(avg_intersection_publisher_);
 
         auto & odometryMsg = realtime_odometry_publisher_->msg_;
         odometryMsg.header.frame_id = odom_params_.odom_frame_id_;
@@ -875,63 +882,14 @@ namespace whi_swerve_steering_controller
             offsetsRight.resize(right_steer_names_.size(), 0.0);
         }
 
-        std::vector<std::array<double, 2>> leftLimits;
-        auto flatenLimitsLeft = node_->get_parameter("left_steer_limits").as_double_array();
-        if (flatenLimitsLeft.size() / 2 != left_steer_names_.size())
-        {
-            RCLCPP_WARN(logger,
-                "the number of left steer limits [%zu] and the number of left steers [%zu] are different, no limit will be applied to left steers",
-                flatenLimitsLeft.size() / 2, left_steer_names_.size());
-
-            leftLimits.resize(left_steer_names_.size(), std::array<double, 2>{-M_PI_2, M_PI_2});
-            for (auto i = 0; i < left_steer_names_.size(); ++i)
-            {
-                wheels_[i].set_limitless(true);
-            }
-        }
-        else
-        {
-            for (auto i = 0; i < flatenLimitsLeft.size() / 2; ++i)
-            {
-                leftLimits.push_back(std::array<double, 2>{flatenLimitsLeft[i * 2], flatenLimitsLeft[i * 2 + 1]});
-            }
-        }
-
-        std::vector<std::array<double, 2>> rightLimits;
-        auto flatenLimitsRight = node_->get_parameter("right_steer_limits").as_double_array();
-        if (flatenLimitsRight.size() / 2 != right_steer_names_.size())
-        {
-            RCLCPP_WARN(logger,
-                "the number of right steer limits [%zu] and the number of right steers [%zu] are different, no limit will be applied to right steers",
-                flatenLimitsRight.size() / 2, right_steer_names_.size());
-
-            rightLimits.resize(right_steer_names_.size(), std::array<double, 2>{-M_PI_2, M_PI_2});
-            for (auto i = 0; i < right_steer_names_.size(); ++i)
-            {
-                wheels_[i + left_steer_names_.size()].set_limitless(true);
-            }
-        }
-        else
-        {
-            for (auto i = 0; i < flatenLimitsRight.size() / 2; ++i)
-            {
-                rightLimits.push_back(std::array<double, 2>{flatenLimitsRight[i * 2], flatenLimitsRight[i * 2 + 1]});
-            }
-        }
-        
         int leftSideSize = left_steer_names_.size();
         for (auto i = 0; i < leftSideSize + right_steer_names_.size(); ++i)
         {
             wheels_[i].position_ = i < leftSideSize ? leftPositions[i] : rightPositions[i - leftSideSize];
             wheels_[i].offset_ = i < leftSideSize ? offsetsLeft[i] : offsetsRight[i - leftSideSize];
-            if (!wheels_[i].get_limitless())
-            {
-                wheels_[i].set_rotation_limits(i < leftSideSize ? leftLimits[i] : rightLimits[i - leftSideSize]);
-            }
 #ifdef DEBUG
-            std::cout << "index " << i << ", position: " << wheels_[i].position_[0] << "," << wheels_[i].position_[1] <<
-                "; offset: " << wheels_[i].offset_ << "; limit:" << std::endl;
-            wheels_[i].get_limits().print();
+            std::cout << "index " << i << ", position: " << wheels_[i].position_[0] << "," <<
+                wheels_[i].position_[1] << "; offset: " << wheels_[i].offset_ << std::endl;
 #endif
         }
 
