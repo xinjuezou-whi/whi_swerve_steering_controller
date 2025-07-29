@@ -132,6 +132,7 @@ namespace whi_swerve_steering_controller
     {
         heading_ += Angular * Dt;
 
+        // forward kinematics
         double linearGlobalX = LinearX * cos(heading_) - LinearY * sin(heading_);
         double linearGlobalY = LinearX * sin(heading_) + LinearY * cos(heading_);
         x_ += linearGlobalX * Dt;

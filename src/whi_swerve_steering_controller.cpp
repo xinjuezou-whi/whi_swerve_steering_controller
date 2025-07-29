@@ -61,8 +61,6 @@ namespace whi_swerve_steering_controller
             auto_declare<std::vector<std::string>>("right_steer_names", std::vector<std::string>());
             auto_declare<std::vector<double>>("left_steer_locations", std::vector<double>());
             auto_declare<std::vector<double>>("right_steer_locations", std::vector<double>());
-            auto_declare<std::vector<double>>("left_steer_location_offsets", std::vector<double>());
-            auto_declare<std::vector<double>>("right_steer_location_offsets", std::vector<double>());
             auto_declare<std::vector<double>>("left_steer_limits", std::vector<double>());
             auto_declare<std::vector<double>>("right_steer_limits", std::vector<double>());
 
@@ -325,10 +323,9 @@ namespace whi_swerve_steering_controller
         // compute wheels velocities and steer positions and set them
         for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
         {
-            double wheelLinearX = command.twist.linear.x - command.twist.angular.z * wheels_[i].position_[1]
-                - wheels_[i].offset_ * cos(steerAngle[i]);
-            double wheelLinearY = command.twist.linear.y + command.twist.angular.z * wheels_[i].position_[0]
-                + wheels_[i].offset_ * sin(steerAngle[i]);
+            // inverse kinematics
+            double wheelLinearX = command.twist.linear.x - command.twist.angular.z * wheels_[i].position_[1];
+            double wheelLinearY = command.twist.linear.y + command.twist.angular.z * wheels_[i].position_[0];
             
             // get the required wheel angular and the required steering angle 
             double wheelAngular  = sqrt(pow(wheelLinearX, 2) + pow(wheelLinearY, 2)) / wheels_[i].radius_;
@@ -862,31 +859,10 @@ namespace whi_swerve_steering_controller
             rightPositions.push_back(std::array<double, 2>{flatenPosRight[i * 2], flatenPosRight[i * 2 + 1]});
         }
 
-        auto offsetsLeft = node_->get_parameter("left_steer_location_offsets").as_double_array();
-        if (offsetsLeft.size() < left_steer_names_.size())
-        {
-            RCLCPP_WARN(logger,
-                "the number of left steer location offsets [%zu] is less than the number of left steers [%zu], default 0.0 will be used",
-                offsetsLeft.size(), left_steer_names_.size());
-
-            offsetsLeft.resize(left_steer_names_.size(), 0.0);
-        }
-
-        auto offsetsRight = node_->get_parameter("right_steer_location_offsets").as_double_array();
-        if (offsetsRight.size() < right_steer_names_.size())
-        {
-            RCLCPP_WARN(logger,
-                "the number of right steer location offsets [%zu] is less than the number of right steers [%zu], default 0.0 will be used",
-                offsetsRight.size(), right_steer_names_.size());
-
-            offsetsRight.resize(right_steer_names_.size(), 0.0);
-        }
-
         int leftSideSize = left_steer_names_.size();
         for (auto i = 0; i < leftSideSize + right_steer_names_.size(); ++i)
         {
             wheels_[i].position_ = i < leftSideSize ? leftPositions[i] : rightPositions[i - leftSideSize];
-            wheels_[i].offset_ = i < leftSideSize ? offsetsLeft[i] : offsetsRight[i - leftSideSize];
 #ifdef DEBUG
             std::cout << "index " << i << ", position: " << wheels_[i].position_[0] << "," <<
                 wheels_[i].position_[1] << "; offset: " << wheels_[i].offset_ << std::endl;

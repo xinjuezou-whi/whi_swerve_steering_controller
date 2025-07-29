@@ -27,7 +27,6 @@ public:
     ~Wheel() = default;
 
 public:
-    double offset_{ 0.0 };
     double radius_{ 0.1 };
     std::array<double, 2> position_{ 0.0, 0.0 };
 };
