@@ -18,7 +18,6 @@ Changelog:
 #pragma once
 #include "whi_swerve_steering_controller/visibility_control.h"
 #include "whi_swerve_steering_controller/speed_limiter.hpp"
-#include "whi_swerve_steering_controller/wheel.h"
 #include "whi_swerve_steering_controller/odometry.hpp"
 
 #include <rclcpp/rclcpp.hpp>
@@ -106,6 +105,12 @@ namespace whi_swerve_steering_controller
         std::vector<SteerHandle> registered_left_steer_handles_;
         std::vector<SteerHandle> registered_right_steer_handles_;
 
+        struct Wheel
+        {
+            double radius_{ 0.1 };
+            std::array<double, 2> position_{ 0.0, 0.0 };
+        };
+
         std::vector<Wheel> wheels_;
         std::vector<std::string> left_wheel_names_;
         std::vector<std::string> right_wheel_names_;
@@ -118,6 +123,7 @@ namespace whi_swerve_steering_controller
 
         struct OdometryParams
         {
+            bool enable_odom_{ true };
             bool enable_odom_tf_{ true };
             std::string base_frame_id_{ "base_link" };
             std::string odom_frame_id_{ "odom" };

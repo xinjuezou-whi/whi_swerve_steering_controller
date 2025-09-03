@@ -35,7 +35,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.2.1" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.2.2" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
@@ -68,6 +68,7 @@ namespace whi_swerve_steering_controller
             auto_declare<std::string>("base_frame_id", odom_params_.base_frame_id_);
             auto_declare<std::vector<double>>("pose_covariance_diagonal", std::vector<double>());
             auto_declare<std::vector<double>>("twist_covariance_diagonal", std::vector<double>());
+            auto_declare<bool>("enable_odom", odom_params_.enable_odom_);
             auto_declare<bool>("enable_odom_tf", odom_params_.enable_odom_tf_);
 
             auto_declare<double>("cmd_vel_timeout", cmd_vel_timeout_.count() / 1000.0);
@@ -266,7 +267,7 @@ namespace whi_swerve_steering_controller
         {
             previous_publish_timestamp_ += publish_period_;
 
-            if (realtime_odometry_publisher_->trylock())
+            if (odom_params_.enable_odom_ && realtime_odometry_publisher_->trylock())
             {
                 auto & odometry_message = realtime_odometry_publisher_->msg_;
                 odometry_message.header.stamp = currentTime;
@@ -422,6 +423,7 @@ namespace whi_swerve_steering_controller
         auto twistDiagonal = node_->get_parameter("twist_covariance_diagonal").as_double_array();
         std::copy(twistDiagonal.begin(), twistDiagonal.end(), odom_params_.twist_covariance_diagonal_.begin());
 
+        odom_params_.enable_odom_ = node_->get_parameter("enable_odom").as_bool();
         odom_params_.enable_odom_tf_ = node_->get_parameter("enable_odom_tf").as_bool();
 
         // cmd_vel
