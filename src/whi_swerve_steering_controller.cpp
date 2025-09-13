@@ -36,7 +36,7 @@ namespace whi_swerve_steering_controller
     controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.2.2" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.2.3" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         // initialize lifecycle node
