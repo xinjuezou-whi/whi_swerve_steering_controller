@@ -151,6 +151,12 @@ namespace whi_swerve_steering_controller
         SpeedLimiter limiter_linear_y_;
         SpeedLimiter limiter_angular_;
 
+        // command values
+        std::vector<double> wheels_angular_;
+        std::vector<double> steers_angle_;
+        std::vector<double> pre_steers_angle_;
+        std::vector<double> stable_steers_angle_;
+
         std::chrono::milliseconds cmd_vel_timeout_{ 500 };
         bool use_stamped_vel_{ false };
         bool is_halted{ false };

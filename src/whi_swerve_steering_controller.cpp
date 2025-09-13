@@ -16,6 +16,7 @@ All text above must be included in any redistribution.
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <tf2/LinearMath/Quaternion.h>
+#include <angles/angles.h>
 
 #include <cmath>
 
@@ -195,7 +196,7 @@ namespace whi_swerve_steering_controller
             return std::abs(Value) < Epsilon;
         };
 
-        std::vector<double> wheelsAngular, steerAngle;
+        std::vector<double> wheelsAngular, steerAngle, steerAngleModulated;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
             const double angular = registered_left_wheel_handles_[i].velocity_sta_.get().get_value();
@@ -224,6 +225,7 @@ namespace whi_swerve_steering_controller
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on left side", i);
                 return controller_interface::return_type::ERROR;
             }
+            steerAngleModulated.push_back(angle);
 
             // restore the normal coordinate
             if (!isZero(angle) && wheelsAngular[i] < 0.0)
@@ -244,6 +246,7 @@ namespace whi_swerve_steering_controller
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i + left_steer_names_.size());
                 return controller_interface::return_type::ERROR;
             }
+            steerAngleModulated.push_back(angle);
 
             // restore the normal coordinate
             if (!isZero(angle) && wheelsAngular[i + left_steer_names_.size()] < 0.0)
@@ -329,30 +332,77 @@ namespace whi_swerve_steering_controller
             double wheelLinearY = command.twist.linear.y + command.twist.angular.z * wheels_[i].position_[0];
             
             // get the required wheel angular and the required steering angle 
-            double wheelAngular  = sqrt(pow(wheelLinearX, 2) + pow(wheelLinearY, 2)) / wheels_[i].radius_;
-            double steerAngle = atan2(wheelLinearY, wheelLinearX);
+            wheels_angular_[i]  = sqrt(pow(wheelLinearX, 2) + pow(wheelLinearY, 2)) / wheels_[i].radius_;
+            steers_angle_[i] = atan2(wheelLinearY, wheelLinearX);
 
 #ifdef DEBUG
             std::cout << "steer[" << i << "] angle: " << steerAngle << ", angular: " << wheelAngular << std::endl;
 #endif
-            if (fabs(steerAngle) > 0.5 * M_PI)
+            if (fabs(steers_angle_[i]) > 0.5 * M_PI)
             {
-                steerAngle -= signOf(steerAngle) * M_PI;
-                wheelAngular *= -1.0;
+                steers_angle_[i] -= signOf(steers_angle_[i]) * M_PI;
+                wheels_angular_[i] *= -1.0;
             }
 #ifdef DEBUG
-            std::cout << "steer[" << i << "] normal angle: " << steerAngle << ", normal angular: " << wheelAngular << std::endl;
+            std::cout << "steer[" << i << "] normal angle: " << steers_angle_[i] << ", normal angular: " << wheels_angular_[i] << std::endl;
 #endif
+        }
 
-            if (i < left_wheel_names_.size())
+        // detect the big change
+        static bool stable = true;
+        if (stable)
+        {
+            for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
             {
-                registered_left_wheel_handles_[i].velocity_cmd_.get().set_value(wheelAngular);
-                registered_left_steer_handles_[i].position_cmd_.get().set_value(steerAngle);
+                if (fabs(fabs(steers_angle_[i]) - fabs(pre_steers_angle_[i])) > angles::from_degrees(40.0))
+                {
+                    stable = false;
+                    break;
+                }
+            }
+            if (!stable)
+            {
+                stable_steers_angle_ = steers_angle_;
+                wheels_angular_.resize(wheels_angular_.size(), 0.0);
             }
             else
             {
-                registered_right_wheel_handles_[i - left_wheel_names_.size()].velocity_cmd_.get().set_value(wheelAngular);
-                registered_right_steer_handles_[i - left_wheel_names_.size()].position_cmd_.get().set_value(steerAngle);
+                pre_steers_angle_ = steers_angle_;
+            }
+        }
+        else
+        {
+            // check if the steers are stable
+            stable = true;
+            for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
+            {
+                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steerAngleModulated[i])) > angles::from_degrees(2.0))
+                {
+                    stable = false;
+                    break;
+                }
+            }
+            if (!stable)
+            {
+                wheels_angular_.resize(wheels_angular_.size(), 0.0);
+            }
+            else
+            {
+                pre_steers_angle_ = steers_angle_;
+            }
+        }
+        
+        for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
+        {
+            if (i < left_wheel_names_.size())
+            {
+                registered_left_steer_handles_[i].position_cmd_.get().set_value(steers_angle_[i]);
+                registered_left_wheel_handles_[i].velocity_cmd_.get().set_value(wheels_angular_[i]);
+            }
+            else
+            {
+                registered_right_steer_handles_[i - left_wheel_names_.size()].position_cmd_.get().set_value(steers_angle_[i]);
+                registered_right_wheel_handles_[i - left_wheel_names_.size()].velocity_cmd_.get().set_value(wheels_angular_[i]);
             }
         }
 
@@ -785,6 +835,10 @@ namespace whi_swerve_steering_controller
 
         // wheels
         wheels_.resize(left_wheel_names_.size() + right_wheel_names_.size());
+        wheels_angular_.resize(wheels_.size(), 0.0);
+        steers_angle_.resize(wheels_.size(), 0.0);
+        pre_steers_angle_.resize(wheels_.size(), 0.0);
+        stable_steers_angle_.resize(wheels_.size(), 0.0);
         auto radiusLeft = node_->get_parameter("left_wheel_radius").as_double_array();
         auto radiusMultiLeft = node_->get_parameter("left_wheel_radius_multiplier").as_double_array();
         if (radiusLeft.size() != left_wheel_names_.size())
