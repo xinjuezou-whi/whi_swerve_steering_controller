@@ -29,6 +29,7 @@ find_package(realtime_tools REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(Boost REQUIRED)
+find_package(angles REQUIRED)
 
 ## Declare a C++ library
 FILE(GLOB WHI_SDK_SRC
@@ -55,6 +56,7 @@ ament_target_dependencies(${PROJECT_NAME}
   realtime_tools
   tf2
   tf2_msgs
+  angles
   Boost
 )
 

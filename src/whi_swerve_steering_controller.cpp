@@ -15,6 +15,7 @@ All text above must be included in any redistribution.
 #include "whi_swerve_steering_controller/whi_swerve_steering_controller.hpp"
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <lifecycle_msgs/msg/state.hpp>
 #include <tf2/LinearMath/Quaternion.h>
 #include <angles/angles.h>
 
@@ -32,80 +33,6 @@ namespace whi_swerve_steering_controller
 
     WhiSwerveSteeringController::WhiSwerveSteeringController()
         : controller_interface::ControllerInterface() {}
-
-    controller_interface::return_type WhiSwerveSteeringController::init(const std::string& ControllerName)
-    {
-        /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.2.3" << std::endl;
-        std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
-
-        // initialize lifecycle node
-        auto ret = ControllerInterface::init(ControllerName);
-        if (ret != controller_interface::return_type::OK)
-        {
-            return ret;
-        }
-
-        try
-        {
-            auto_declare<double>("publish_rate", publish_rate_);
-
-            // with the lifecycle node being initialized, we can declare parameters
-            auto_declare<std::vector<std::string>>("left_wheel_names", std::vector<std::string>());
-            auto_declare<std::vector<std::string>>("right_wheel_names", std::vector<std::string>());
-            auto_declare<std::vector<double>>("left_wheel_radius", std::vector<double>());
-            auto_declare<std::vector<double>>("left_wheel_radius_multiplier", std::vector<double>());
-            auto_declare<std::vector<double>>("right_wheel_radius", std::vector<double>());
-            auto_declare<std::vector<double>>("right_wheel_radius_multiplier", std::vector<double>());
-
-            auto_declare<std::vector<std::string>>("left_steer_names", std::vector<std::string>());
-            auto_declare<std::vector<std::string>>("right_steer_names", std::vector<std::string>());
-            auto_declare<std::vector<double>>("left_steer_locations", std::vector<double>());
-            auto_declare<std::vector<double>>("right_steer_locations", std::vector<double>());
-            auto_declare<std::vector<double>>("left_steer_limits", std::vector<double>());
-            auto_declare<std::vector<double>>("right_steer_limits", std::vector<double>());
-
-            auto_declare<std::string>("odom_frame_id", odom_params_.odom_frame_id_);
-            auto_declare<std::string>("base_frame_id", odom_params_.base_frame_id_);
-            auto_declare<std::vector<double>>("pose_covariance_diagonal", std::vector<double>());
-            auto_declare<std::vector<double>>("twist_covariance_diagonal", std::vector<double>());
-            auto_declare<bool>("enable_odom", odom_params_.enable_odom_);
-            auto_declare<bool>("enable_odom_tf", odom_params_.enable_odom_tf_);
-
-            auto_declare<double>("cmd_vel_timeout", cmd_vel_timeout_.count() / 1000.0);
-            auto_declare<bool>("publish_limited_velocity", publish_limited_velocity_);
-            auto_declare<int>("velocity_rolling_window_size", 10);
-            auto_declare<bool>("use_stamped_vel", use_stamped_vel_);
-
-            auto_declare<bool>("linear.x.has_velocity_limits", false);
-            auto_declare<bool>("linear.x.has_acceleration_limits", false);
-            auto_declare<bool>("linear.x.has_jerk_limits", false);
-            auto_declare<double>("linear.x.max_velocity", NAN);
-            auto_declare<double>("linear.x.min_velocity", NAN);
-            auto_declare<double>("linear.x.max_acceleration", NAN);
-            auto_declare<double>("linear.x.min_acceleration", NAN);
-            auto_declare<double>("linear.x.max_jerk", NAN);
-            auto_declare<double>("linear.x.min_jerk", NAN);
-
-            auto_declare<bool>("angular.z.has_velocity_limits", false);
-            auto_declare<bool>("angular.z.has_acceleration_limits", false);
-            auto_declare<bool>("angular.z.has_jerk_limits", false);
-            auto_declare<double>("angular.z.max_velocity", NAN);
-            auto_declare<double>("angular.z.min_velocity", NAN);
-            auto_declare<double>("angular.z.max_acceleration", NAN);
-            auto_declare<double>("angular.z.min_acceleration", NAN);
-            auto_declare<double>("angular.z.max_jerk", NAN);
-            auto_declare<double>("angular.z.min_jerk", NAN);
-        }
-        catch (const std::exception& e)
-        {
-            RCLCPP_FATAL(node_->get_logger(),
-                "\033[1;31mexception thrown during init stage with message: %s\033[0m", e.what());
-            return controller_interface::return_type::ERROR;
-        }
-
-        return controller_interface::return_type::OK;
-    }
 
     InterfaceConfiguration WhiSwerveSteeringController::command_interface_configuration() const
     {
@@ -152,11 +79,12 @@ namespace whi_swerve_steering_controller
         return {interface_configuration_type::INDIVIDUAL, confNames};
     }
 
-    controller_interface::return_type WhiSwerveSteeringController::update()
+    controller_interface::return_type WhiSwerveSteeringController::update(const rclcpp::Time& Time,
+        const rclcpp::Duration& Period)
     {
-        auto logger = node_->get_logger();
+        auto logger = get_node()->get_logger();
 
-        if (get_current_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE)
+        if (get_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_INACTIVE)
         {
             if (!is_halted)
             {
@@ -166,8 +94,6 @@ namespace whi_swerve_steering_controller
             return controller_interface::return_type::OK;
         }
 
-        const auto currentTime = node_->get_clock()->now();
-
         std::shared_ptr<Twist> lastMsg;
         received_velocity_msg_ptr_.get(lastMsg);
         if (lastMsg == nullptr)
@@ -176,7 +102,7 @@ namespace whi_swerve_steering_controller
             return controller_interface::return_type::ERROR;
         }
 
-        const auto dt = currentTime - lastMsg->header.stamp;
+        const auto dt = Time - lastMsg->header.stamp;
         // brake if cmd_vel has timeout, override the stored command
         if (dt > cmd_vel_timeout_)
         {
@@ -260,20 +186,20 @@ namespace whi_swerve_steering_controller
 #endif
         }
 
-        odometry_.update(wheelsAngular, steerAngle, currentTime);
+        odometry_.update(wheelsAngular, steerAngle, Time);
 
         // publish odometry message
         tf2::Quaternion orientation;
         orientation.setRPY(0.0, 0.0, odometry_.getHeading());
 
-        if (previous_publish_timestamp_ < currentTime)
+        if (previous_publish_timestamp_ < Time)
         {
             previous_publish_timestamp_ += publish_period_;
 
             if (odom_params_.enable_odom_ && realtime_odometry_publisher_->trylock())
             {
                 auto & odometry_message = realtime_odometry_publisher_->msg_;
-                odometry_message.header.stamp = currentTime;
+                odometry_message.header.stamp = Time;
                 odometry_message.pose.pose.position.x = odometry_.getX();
                 odometry_message.pose.pose.position.y = odometry_.getY();
                 odometry_message.pose.pose.orientation.x = orientation.x();
@@ -289,7 +215,7 @@ namespace whi_swerve_steering_controller
             if (odom_params_.enable_odom_tf_ && realtime_odometry_transform_publisher_->trylock())
             {
                 auto & transform = realtime_odometry_transform_publisher_->msg_.transforms.front();
-                transform.header.stamp = currentTime;
+                transform.header.stamp = Time;
                 transform.transform.translation.x = odometry_.getX();
                 transform.transform.translation.y = odometry_.getY();
                 transform.transform.rotation.x = orientation.x();
@@ -300,17 +226,16 @@ namespace whi_swerve_steering_controller
             }
         }
 
-        const auto updateDt = currentTime - previous_update_timestamp_;
-        previous_update_timestamp_ = currentTime;
+        previous_update_timestamp_ = Time;
 
         auto& lastCommand = previous_commands_.back().twist;
         auto& secondToLastCommand = previous_commands_.front().twist;
         limiter_linear_x_.limit(
-            linearCommandX, lastCommand.linear.x, secondToLastCommand.linear.x, updateDt.seconds());
+            linearCommandX, lastCommand.linear.x, secondToLastCommand.linear.x, Period.seconds());
         limiter_linear_y_.limit(
-            linearCommandY, lastCommand.linear.y, secondToLastCommand.linear.y, updateDt.seconds());
+            linearCommandY, lastCommand.linear.y, secondToLastCommand.linear.y, Period.seconds());
         limiter_angular_.limit(
-            angularCommand, lastCommand.angular.z, secondToLastCommand.angular.z, updateDt.seconds());
+            angularCommand, lastCommand.angular.z, secondToLastCommand.angular.z, Period.seconds());
 
         previous_commands_.pop();
         previous_commands_.emplace(command);
@@ -319,7 +244,7 @@ namespace whi_swerve_steering_controller
         if (publish_limited_velocity_ && realtime_limited_velocity_publisher_->trylock())
         {
             auto& limitedVelocityCommand = realtime_limited_velocity_publisher_->msg_;
-            limitedVelocityCommand.header.stamp = currentTime;
+            limitedVelocityCommand.header.stamp = Time;
             limitedVelocityCommand.twist = command.twist;
             realtime_limited_velocity_publisher_->unlockAndPublish();
         }
@@ -409,46 +334,114 @@ namespace whi_swerve_steering_controller
         return controller_interface::return_type::OK;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_configure(const rclcpp_lifecycle::State&)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_init()
     {
-        auto logger = node_->get_logger();
+        /// node version and copyright announcement
+        std::cout << "\nWHI swerve steering controller VERSION 0.2.3" << std::endl;
+        std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
+
+        try
+        {
+            auto_declare<double>("publish_rate", publish_rate_);
+
+            // with the lifecycle node being initialized, we can declare parameters
+            auto_declare<std::vector<std::string>>("left_wheel_names", std::vector<std::string>());
+            auto_declare<std::vector<std::string>>("right_wheel_names", std::vector<std::string>());
+            auto_declare<std::vector<double>>("left_wheel_radius", std::vector<double>());
+            auto_declare<std::vector<double>>("left_wheel_radius_multiplier", std::vector<double>());
+            auto_declare<std::vector<double>>("right_wheel_radius", std::vector<double>());
+            auto_declare<std::vector<double>>("right_wheel_radius_multiplier", std::vector<double>());
+
+            auto_declare<std::vector<std::string>>("left_steer_names", std::vector<std::string>());
+            auto_declare<std::vector<std::string>>("right_steer_names", std::vector<std::string>());
+            auto_declare<std::vector<double>>("left_steer_locations", std::vector<double>());
+            auto_declare<std::vector<double>>("right_steer_locations", std::vector<double>());
+            auto_declare<std::vector<double>>("left_steer_limits", std::vector<double>());
+            auto_declare<std::vector<double>>("right_steer_limits", std::vector<double>());
+
+            auto_declare<std::string>("odom_frame_id", odom_params_.odom_frame_id_);
+            auto_declare<std::string>("base_frame_id", odom_params_.base_frame_id_);
+            auto_declare<std::vector<double>>("pose_covariance_diagonal", std::vector<double>());
+            auto_declare<std::vector<double>>("twist_covariance_diagonal", std::vector<double>());
+            auto_declare<bool>("enable_odom", odom_params_.enable_odom_);
+            auto_declare<bool>("enable_odom_tf", odom_params_.enable_odom_tf_);
+
+            auto_declare<double>("cmd_vel_timeout", cmd_vel_timeout_.count() / 1000.0);
+            auto_declare<bool>("publish_limited_velocity", publish_limited_velocity_);
+            auto_declare<int>("velocity_rolling_window_size", 10);
+            auto_declare<bool>("use_stamped_vel", use_stamped_vel_);
+
+            auto_declare<bool>("linear.x.has_velocity_limits", false);
+            auto_declare<bool>("linear.x.has_acceleration_limits", false);
+            auto_declare<bool>("linear.x.has_jerk_limits", false);
+            auto_declare<double>("linear.x.max_velocity", NAN);
+            auto_declare<double>("linear.x.min_velocity", NAN);
+            auto_declare<double>("linear.x.max_acceleration", NAN);
+            auto_declare<double>("linear.x.min_acceleration", NAN);
+            auto_declare<double>("linear.x.max_jerk", NAN);
+            auto_declare<double>("linear.x.min_jerk", NAN);
+
+            auto_declare<bool>("angular.z.has_velocity_limits", false);
+            auto_declare<bool>("angular.z.has_acceleration_limits", false);
+            auto_declare<bool>("angular.z.has_jerk_limits", false);
+            auto_declare<double>("angular.z.max_velocity", NAN);
+            auto_declare<double>("angular.z.min_velocity", NAN);
+            auto_declare<double>("angular.z.max_acceleration", NAN);
+            auto_declare<double>("angular.z.min_acceleration", NAN);
+            auto_declare<double>("angular.z.max_jerk", NAN);
+            auto_declare<double>("angular.z.min_jerk", NAN);
+        }
+        catch (const std::exception& e)
+        {
+            RCLCPP_FATAL(get_node()->get_logger(),
+                "\033[1;31mexception thrown during init stage with message: %s\033[0m", e.what());
+            return controller_interface::CallbackReturn::ERROR;
+        }
+
+        return controller_interface::CallbackReturn::SUCCESS;
+    }
+
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_configure(
+        const rclcpp_lifecycle::State&)
+    {
+        auto logger = get_node()->get_logger();
 
         /// update parameters
         // wheels
-        left_wheel_names_ = node_->get_parameter("left_wheel_names").as_string_array();
-        right_wheel_names_ = node_->get_parameter("right_wheel_names").as_string_array();
+        left_wheel_names_ = get_node()->get_parameter("left_wheel_names").as_string_array();
+        right_wheel_names_ = get_node()->get_parameter("right_wheel_names").as_string_array();
         if (left_wheel_names_.empty() || right_wheel_names_.empty())
         {
             RCLCPP_ERROR(logger,
                 "\033[1;31meither the left wheels or the right wheels are empty\033[0m");
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
         if (left_wheel_names_.size() != right_wheel_names_.size())
         {
             RCLCPP_ERROR(logger,
                 "\033[1;31mthe number of left wheels [%zu] and the number of right wheels [%zu] are different\033[0m",
                 left_wheel_names_.size(), right_wheel_names_.size());
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
         // steers
-        left_steer_names_ = node_->get_parameter("left_steer_names").as_string_array();
-        right_steer_names_ = node_->get_parameter("right_steer_names").as_string_array();
+        left_steer_names_ = get_node()->get_parameter("left_steer_names").as_string_array();
+        right_steer_names_ = get_node()->get_parameter("right_steer_names").as_string_array();
         if (left_steer_names_.empty() || right_steer_names_.empty())
         {
             RCLCPP_ERROR(logger,
                 "\033[1;31meither the left steers or the right steers are empty\033[0m");
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
         if (left_steer_names_.size() != right_steer_names_.size())
         {
             RCLCPP_ERROR(logger,
                 "\033[1;31mthe number of left steers [%zu] and the number of right steers [%zu] are different\033[0m",
                 left_steer_names_.size(), right_steer_names_.size());
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
         if (!getWheelsParam())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         // odom
@@ -460,83 +453,85 @@ namespace whi_swerve_steering_controller
             steerPositions.push_back(it.position_);
         }
 
-        odometry_.init(node_->get_clock()->now());
+        odometry_.init(get_node()->get_clock()->now());
         odometry_.setWheelsParams(radii, steerPositions);
         odometry_.setVelocityRollingWindowSize(
-            node_->get_parameter("velocity_rolling_window_size").as_int());
+            get_node()->get_parameter("velocity_rolling_window_size").as_int());
 
-        odom_params_.odom_frame_id_ = node_->get_parameter("odom_frame_id").as_string();
-        odom_params_.base_frame_id_ = node_->get_parameter("base_frame_id").as_string();
+        odom_params_.odom_frame_id_ = get_node()->get_parameter("odom_frame_id").as_string();
+        odom_params_.base_frame_id_ = get_node()->get_parameter("base_frame_id").as_string();
 
-        auto poseDiagonal = node_->get_parameter("pose_covariance_diagonal").as_double_array();
+        auto poseDiagonal = get_node()->get_parameter("pose_covariance_diagonal").as_double_array();
         std::copy(poseDiagonal.begin(), poseDiagonal.end(), odom_params_.pose_covariance_diagonal_.begin());
-        auto twistDiagonal = node_->get_parameter("twist_covariance_diagonal").as_double_array();
+        auto twistDiagonal = get_node()->get_parameter("twist_covariance_diagonal").as_double_array();
         std::copy(twistDiagonal.begin(), twistDiagonal.end(), odom_params_.twist_covariance_diagonal_.begin());
 
-        odom_params_.enable_odom_ = node_->get_parameter("enable_odom").as_bool();
-        odom_params_.enable_odom_tf_ = node_->get_parameter("enable_odom_tf").as_bool();
+        odom_params_.enable_odom_ = get_node()->get_parameter("enable_odom").as_bool();
+        odom_params_.enable_odom_tf_ = get_node()->get_parameter("enable_odom_tf").as_bool();
 
         // cmd_vel
         cmd_vel_timeout_ = std::chrono::milliseconds{
-            static_cast<int>(node_->get_parameter("cmd_vel_timeout").as_double() * 1000.0)};
-        publish_limited_velocity_ = node_->get_parameter("publish_limited_velocity").as_bool();
-        use_stamped_vel_ = node_->get_parameter("use_stamped_vel").as_bool();
+            static_cast<int>(get_node()->get_parameter("cmd_vel_timeout").as_double() * 1000.0)};
+        publish_limited_velocity_ = get_node()->get_parameter("publish_limited_velocity").as_bool();
+        use_stamped_vel_ = get_node()->get_parameter("use_stamped_vel").as_bool();
 
         // speed limit
         try
         {
             limiter_linear_x_ = SpeedLimiter(
-                node_->get_parameter("linear.x.has_velocity_limits").as_bool(),
-                node_->get_parameter("linear.x.has_acceleration_limits").as_bool(),
-                node_->get_parameter("linear.x.has_jerk_limits").as_bool(),
-                node_->get_parameter("linear.x.min_velocity").as_double(),
-                node_->get_parameter("linear.x.max_velocity").as_double(),
-                node_->get_parameter("linear.x.min_acceleration").as_double(),
-                node_->get_parameter("linear.x.max_acceleration").as_double(),
-                node_->get_parameter("linear.x.min_jerk").as_double(),
-                node_->get_parameter("linear.x.max_jerk").as_double());
+                get_node()->get_parameter("linear.x.has_velocity_limits").as_bool(),
+                get_node()->get_parameter("linear.x.has_acceleration_limits").as_bool(),
+                get_node()->get_parameter("linear.x.has_jerk_limits").as_bool(),
+                get_node()->get_parameter("linear.x.min_velocity").as_double(),
+                get_node()->get_parameter("linear.x.max_velocity").as_double(),
+                get_node()->get_parameter("linear.x.min_acceleration").as_double(),
+                get_node()->get_parameter("linear.x.max_acceleration").as_double(),
+                get_node()->get_parameter("linear.x.min_jerk").as_double(),
+                get_node()->get_parameter("linear.x.max_jerk").as_double());
             limiter_linear_y_ = SpeedLimiter(
-                node_->get_parameter("linear.y.has_velocity_limits").as_bool(),
-                node_->get_parameter("linear.y.has_acceleration_limits").as_bool(),
-                node_->get_parameter("linear.y.has_jerk_limits").as_bool(),
-                node_->get_parameter("linear.y.min_velocity").as_double(),
-                node_->get_parameter("linear.y.max_velocity").as_double(),
-                node_->get_parameter("linear.y.min_acceleration").as_double(),
-                node_->get_parameter("linear.y.max_acceleration").as_double(),
-                node_->get_parameter("linear.y.min_jerk").as_double(),
-                node_->get_parameter("linear.y.max_jerk").as_double());
+                get_node()->get_parameter("linear.y.has_velocity_limits").as_bool(),
+                get_node()->get_parameter("linear.y.has_acceleration_limits").as_bool(),
+                get_node()->get_parameter("linear.y.has_jerk_limits").as_bool(),
+                get_node()->get_parameter("linear.y.min_velocity").as_double(),
+                get_node()->get_parameter("linear.y.max_velocity").as_double(),
+                get_node()->get_parameter("linear.y.min_acceleration").as_double(),
+                get_node()->get_parameter("linear.y.max_acceleration").as_double(),
+                get_node()->get_parameter("linear.y.min_jerk").as_double(),
+                get_node()->get_parameter("linear.y.max_jerk").as_double());
         }
         catch (const std::runtime_error & e)
         {
-            RCLCPP_ERROR(logger, "\033[1;31merror configuring linear speed limiter: %s\033[0m", e.what());
+            RCLCPP_ERROR(logger,
+                "\033[1;31merror configuring linear speed limiter: %s\033[0m", e.what());
         }
         try
         {
             limiter_angular_ = SpeedLimiter(
-                node_->get_parameter("angular.z.has_velocity_limits").as_bool(),
-                node_->get_parameter("angular.z.has_acceleration_limits").as_bool(),
-                node_->get_parameter("angular.z.has_jerk_limits").as_bool(),
-                node_->get_parameter("angular.z.min_velocity").as_double(),
-                node_->get_parameter("angular.z.max_velocity").as_double(),
-                node_->get_parameter("angular.z.min_acceleration").as_double(),
-                node_->get_parameter("angular.z.max_acceleration").as_double(),
-                node_->get_parameter("angular.z.min_jerk").as_double(),
-                node_->get_parameter("angular.z.max_jerk").as_double());
+                get_node()->get_parameter("angular.z.has_velocity_limits").as_bool(),
+                get_node()->get_parameter("angular.z.has_acceleration_limits").as_bool(),
+                get_node()->get_parameter("angular.z.has_jerk_limits").as_bool(),
+                get_node()->get_parameter("angular.z.min_velocity").as_double(),
+                get_node()->get_parameter("angular.z.max_velocity").as_double(),
+                get_node()->get_parameter("angular.z.min_acceleration").as_double(),
+                get_node()->get_parameter("angular.z.max_acceleration").as_double(),
+                get_node()->get_parameter("angular.z.min_jerk").as_double(),
+                get_node()->get_parameter("angular.z.max_jerk").as_double());
         }
         catch (const std::runtime_error & e)
         {
-            RCLCPP_ERROR(logger, "\033[1;31merror configuring angular speed limiter: %s\033[0m", e.what());
+            RCLCPP_ERROR(logger,
+                "\033[1;31merror configuring angular speed limiter: %s\033[0m", e.what());
         }
 
         if (!reset())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         if (publish_limited_velocity_)
         {
             limited_velocity_publisher_ =
-                node_->create_publisher<Twist>("~/cmd_vel_out", rclcpp::SystemDefaultsQoS());
+                get_node()->create_publisher<Twist>("~/cmd_vel_out", rclcpp::SystemDefaultsQoS());
             realtime_limited_velocity_publisher_ =
                 std::make_shared<realtime_tools::RealtimePublisher<Twist>>(limited_velocity_publisher_);
         }
@@ -551,7 +546,7 @@ namespace whi_swerve_steering_controller
         // initialize command subscriber
         if (use_stamped_vel_)
         {
-            velocity_command_subscriber_ = node_->create_subscription<Twist>(
+            velocity_command_subscriber_ = get_node()->create_subscription<Twist>(
                 "~/cmd_vel", rclcpp::SystemDefaultsQoS(),
                 [this, &logger](const std::shared_ptr<Twist> msg) -> void
                 {
@@ -566,14 +561,14 @@ namespace whi_swerve_steering_controller
                             "received TwistStamped with zero timestamp, setting it to current "
                             "time, this message will only be shown once");
 
-                        msg->header.stamp = node_->get_clock()->now();
+                        msg->header.stamp = get_node()->get_clock()->now();
                     }
                     received_velocity_msg_ptr_.set(std::move(msg));
                 });
         }
         else
         {
-            velocity_command_unstamped_subscriber_ = node_->create_subscription<geometry_msgs::msg::Twist>(
+            velocity_command_unstamped_subscriber_ = get_node()->create_subscription<geometry_msgs::msg::Twist>(
                 "~/cmd_vel_unstamped", rclcpp::SystemDefaultsQoS(),
                 [this, &logger](const std::shared_ptr<geometry_msgs::msg::Twist> msg) -> void
                 {
@@ -587,16 +582,16 @@ namespace whi_swerve_steering_controller
                     std::shared_ptr<Twist> twistStamped;
                     received_velocity_msg_ptr_.get(twistStamped);
                     twistStamped->twist = *msg;
-                    twistStamped->header.stamp = node_->get_clock()->now();
+                    twistStamped->header.stamp = get_node()->get_clock()->now();
                 });
         }
 
         // initialize odometry publisher and messasge
-        odometry_publisher_ = node_->create_publisher<nav_msgs::msg::Odometry>("/odom", rclcpp::SystemDefaultsQoS());
+        odometry_publisher_ = get_node()->create_publisher<nav_msgs::msg::Odometry>("~/odom", rclcpp::SystemDefaultsQoS());
         realtime_odometry_publisher_ =
             std::make_shared<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(odometry_publisher_);
 
-        auto & odometryMsg = realtime_odometry_publisher_->msg_;
+        auto& odometryMsg = realtime_odometry_publisher_->msg_;
         odometryMsg.header.frame_id = odom_params_.odom_frame_id_;
         odometryMsg.child_frame_id = odom_params_.base_frame_id_;
         // initialize odom values zeros first
@@ -611,7 +606,7 @@ namespace whi_swerve_steering_controller
         }
 
         // initialize transform publisher and message
-        odometry_transform_publisher_ = node_->create_publisher<tf2_msgs::msg::TFMessage>(
+        odometry_transform_publisher_ = get_node()->create_publisher<tf2_msgs::msg::TFMessage>(
             "/tf", rclcpp::SystemDefaultsQoS());
         realtime_odometry_transform_publisher_ =
             std::make_shared<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>(odometry_transform_publisher_);
@@ -623,16 +618,17 @@ namespace whi_swerve_steering_controller
         odometryTransformMsg.transforms.front().child_frame_id = odom_params_.base_frame_id_;
 
         // limit the publication on the topics /odom and /tf
-        publish_rate_ = node_->get_parameter("publish_rate").as_double();
+        publish_rate_ = get_node()->get_parameter("publish_rate").as_double();
         publish_period_ = rclcpp::Duration::from_seconds(1.0 / publish_rate_);
-        previous_publish_timestamp_ = node_->get_clock()->now();
+        previous_publish_timestamp_ = get_node()->get_clock()->now();
 
-        previous_update_timestamp_ = node_->get_clock()->now();
+        previous_update_timestamp_ = get_node()->get_clock()->now();
 
-        return CallbackReturn::SUCCESS;
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_activate(const rclcpp_lifecycle::State&)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_activate(
+        const rclcpp_lifecycle::State&)
     {
         const auto leftWheelResult =
             configureWheelSide("left", left_wheel_names_, registered_left_wheel_handles_);
@@ -643,67 +639,80 @@ namespace whi_swerve_steering_controller
         const auto rightSteerResult =
             configureSteerSide("right", right_steer_names_, registered_right_steer_handles_);
 
-        if (leftWheelResult == CallbackReturn::ERROR || rightWheelResult == CallbackReturn::ERROR ||
-            leftSteerResult == CallbackReturn::ERROR || rightSteerResult == CallbackReturn::ERROR)
+        if (leftWheelResult == controller_interface::CallbackReturn::ERROR ||
+            rightWheelResult == controller_interface::CallbackReturn::ERROR ||
+            leftSteerResult == controller_interface::CallbackReturn::ERROR ||
+            rightSteerResult == controller_interface::CallbackReturn::ERROR)
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         if (registered_left_wheel_handles_.empty() || registered_right_wheel_handles_.empty() ||
             registered_left_steer_handles_.empty() || registered_right_steer_handles_.empty())
         {
-            RCLCPP_ERROR(node_->get_logger(),
+            RCLCPP_ERROR(get_node()->get_logger(),
                 "\033[1;31meither left wheel or steer interfaces, right wheel or steer interfaces are non existent\033[0m");
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         is_halted = false;
         subscriber_is_active_ = true;
 
-        RCLCPP_INFO(node_->get_logger(), "\033[1;32msubscriber and publisher of swerve controller are now active\033[0m");
-        return CallbackReturn::SUCCESS;
+        RCLCPP_INFO(get_node()->get_logger(),
+            "\033[1;32msubscriber and publisher of swerve controller are now active\033[0m");
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_deactivate(const rclcpp_lifecycle::State &)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_deactivate(
+        const rclcpp_lifecycle::State &)
     {
         subscriber_is_active_ = false;
-        return CallbackReturn::SUCCESS;
+        if (!is_halted)
+        {
+            halt();
+            is_halted = true;
+        }
+
+        registered_left_wheel_handles_.clear();
+        registered_right_wheel_handles_.clear();
+        registered_left_steer_handles_.clear();
+        registered_right_steer_handles_.clear();
+
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_cleanup(const rclcpp_lifecycle::State&)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_cleanup(
+        const rclcpp_lifecycle::State&)
     {
         if (!reset())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         received_velocity_msg_ptr_.set(std::make_shared<Twist>());
-        return CallbackReturn::SUCCESS;
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_error(const rclcpp_lifecycle::State&)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::on_error(
+        const rclcpp_lifecycle::State&)
     {
         if (!reset())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
-        return CallbackReturn::SUCCESS;
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::on_shutdown(const rclcpp_lifecycle::State&)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::configureWheelSide(
+        const std::string& Side, const std::vector<std::string>& WheelNames,
+        std::vector<WheelHandle>& RegisteredHandles)
     {
-        return CallbackReturn::SUCCESS;
-    }
-
-    CallbackReturn WhiSwerveSteeringController::configureWheelSide(const std::string& Side,
-        const std::vector<std::string>& WheelNames, std::vector<WheelHandle>& RegisteredHandles)
-    {
-        auto logger = node_->get_logger();
+        auto logger = get_node()->get_logger();
 
         if (WheelNames.empty())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         // register handles
@@ -719,8 +728,9 @@ namespace whi_swerve_steering_controller
 
             if (stateHandle == state_interfaces_.cend())
             {
-                RCLCPP_ERROR(logger, "\033[1;31munable to obtain wheel state handle for %s\033[0m", name.c_str());
-                return CallbackReturn::ERROR;
+                RCLCPP_ERROR(logger,
+                    "\033[1;31munable to obtain wheel state handle for %s\033[0m", name.c_str());
+                return controller_interface::CallbackReturn::ERROR;
             }
 
             const auto commandHandle = std::find_if(
@@ -733,24 +743,26 @@ namespace whi_swerve_steering_controller
 
             if (commandHandle == command_interfaces_.end())
             {
-                RCLCPP_ERROR(logger, "\033[1;31munable to obtain wheel command handle for %s\033[0m", name.c_str());
-                return CallbackReturn::ERROR;
+                RCLCPP_ERROR(logger,
+                    "\033[1;31munable to obtain wheel command handle for %s\033[0m", name.c_str());
+                return controller_interface::CallbackReturn::ERROR;
             }
 
             RegisteredHandles.emplace_back(WheelHandle{std::ref(*stateHandle), std::ref(*commandHandle)});
         }
 
-        return CallbackReturn::SUCCESS;
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
-    CallbackReturn WhiSwerveSteeringController::configureSteerSide(const std::string& Side,
-        const std::vector<std::string>& SteerNames, std::vector<SteerHandle>& RegisteredHandles)
+    controller_interface::CallbackReturn WhiSwerveSteeringController::configureSteerSide(
+        const std::string& Side, const std::vector<std::string>& SteerNames,
+        std::vector<SteerHandle>& RegisteredHandles)
     {
-        auto logger = node_->get_logger();
+        auto logger = get_node()->get_logger();
 
         if (SteerNames.empty())
         {
-            return CallbackReturn::ERROR;
+            return controller_interface::CallbackReturn::ERROR;
         }
 
         // register handles
@@ -766,8 +778,9 @@ namespace whi_swerve_steering_controller
 
             if (stateHandle == state_interfaces_.cend())
             {
-                RCLCPP_ERROR(logger, "\033[1;31munable to obtain steer state handle for %s\033[0m", name.c_str());
-                return CallbackReturn::ERROR;
+                RCLCPP_ERROR(logger,
+                    "\033[1;31munable to obtain steer state handle for %s\033[0m", name.c_str());
+                return controller_interface::CallbackReturn::ERROR;
             }
 
             const auto commandHandle = std::find_if(
@@ -780,14 +793,15 @@ namespace whi_swerve_steering_controller
 
             if (commandHandle == command_interfaces_.end())
             {
-                RCLCPP_ERROR(logger, "\033[1;31munable to obtain steer command handle for %s\033[0m", name.c_str());
-                return CallbackReturn::ERROR;
+                RCLCPP_ERROR(logger,
+                    "\033[1;31munable to obtain steer command handle for %s\033[0m", name.c_str());
+                return controller_interface::CallbackReturn::ERROR;
             }
 
             RegisteredHandles.emplace_back(SteerHandle{std::ref(*stateHandle), std::ref(*commandHandle)});
         }
 
-        return CallbackReturn::SUCCESS;
+        return controller_interface::CallbackReturn::SUCCESS;
     }
 
     bool WhiSwerveSteeringController::reset()
@@ -831,7 +845,7 @@ namespace whi_swerve_steering_controller
 
     bool WhiSwerveSteeringController::getWheelsParam()
     {
-        auto logger = node_->get_logger();
+        auto logger = get_node()->get_logger();
 
         // wheels
         wheels_.resize(left_wheel_names_.size() + right_wheel_names_.size());
@@ -839,8 +853,8 @@ namespace whi_swerve_steering_controller
         steers_angle_.resize(wheels_.size(), 0.0);
         pre_steers_angle_.resize(wheels_.size(), 0.0);
         stable_steers_angle_.resize(wheels_.size(), 0.0);
-        auto radiusLeft = node_->get_parameter("left_wheel_radius").as_double_array();
-        auto radiusMultiLeft = node_->get_parameter("left_wheel_radius_multiplier").as_double_array();
+        auto radiusLeft = get_node()->get_parameter("left_wheel_radius").as_double_array();
+        auto radiusMultiLeft = get_node()->get_parameter("left_wheel_radius_multiplier").as_double_array();
         if (radiusLeft.size() != left_wheel_names_.size())
         {
             RCLCPP_ERROR(logger,
@@ -857,8 +871,8 @@ namespace whi_swerve_steering_controller
 
             return false;
         }
-        auto radiusRight = node_->get_parameter("right_wheel_radius").as_double_array();
-        auto radiusMultiRight = node_->get_parameter("right_wheel_radius_multiplier").as_double_array();
+        auto radiusRight = get_node()->get_parameter("right_wheel_radius").as_double_array();
+        auto radiusMultiRight = get_node()->get_parameter("right_wheel_radius_multiplier").as_double_array();
         if (radiusRight.size() != right_wheel_names_.size())
         {
             RCLCPP_ERROR(logger,
@@ -885,7 +899,7 @@ namespace whi_swerve_steering_controller
         }
 
         // steers
-        auto flatenPosLeft = node_->get_parameter("left_steer_locations").as_double_array();
+        auto flatenPosLeft = get_node()->get_parameter("left_steer_locations").as_double_array();
         if (flatenPosLeft.size() / 2 != left_steer_names_.size())
         {
             RCLCPP_ERROR(logger,
@@ -900,7 +914,7 @@ namespace whi_swerve_steering_controller
             leftPositions.push_back(std::array<double, 2>{flatenPosLeft[i * 2], flatenPosLeft[i * 2 + 1]});
         }
 
-        auto flatenPosRight = node_->get_parameter("right_steer_locations").as_double_array();
+        auto flatenPosRight = get_node()->get_parameter("right_steer_locations").as_double_array();
         if (flatenPosRight.size() / 2 != right_steer_names_.size())
         {
             RCLCPP_ERROR(logger,

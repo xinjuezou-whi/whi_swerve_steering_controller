@@ -32,7 +32,8 @@ namespace whi_swerve_steering_controller
         explicit Odometry(size_t VelocityRollingWindowSize = 10);
 
         void init(const rclcpp::Time& Time);
-        bool update(std::vector<double> WheelsAngular, std::vector<double> SteersAngle, const rclcpp::Time& Time);
+        bool update(std::vector<double> WheelsAngular, std::vector<double> SteersAngle,
+            const rclcpp::Time& Time);
         void resetOdometry();
 
         double getX() const { return x_; }
