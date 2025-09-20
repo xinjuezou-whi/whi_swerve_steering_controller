@@ -720,9 +720,9 @@ namespace whi_swerve_steering_controller
         for (const auto& name : WheelNames)
         {
             const auto stateHandle = std::find_if(
-                state_interfaces_.cbegin(), state_interfaces_.cend(), [&name](const auto & interface)
+                state_interfaces_.cbegin(), state_interfaces_.cend(), [&name](const auto& interface)
                 {
-                    return interface.get_name() == name &&
+                    return interface.get_prefix_name() == name &&
                         interface.get_interface_name() == hardware_interface::HW_IF_VELOCITY;
                 });
 
@@ -737,7 +737,7 @@ namespace whi_swerve_steering_controller
                 command_interfaces_.begin(), command_interfaces_.end(),
                 [&name](const auto & interface)
                 {
-                    return interface.get_name() == name &&
+                    return interface.get_prefix_name() == name &&
                         interface.get_interface_name() == hardware_interface::HW_IF_VELOCITY;
                 });
 
@@ -770,9 +770,9 @@ namespace whi_swerve_steering_controller
         for (const auto& name : SteerNames)
         {
             const auto stateHandle = std::find_if(
-                state_interfaces_.cbegin(), state_interfaces_.cend(), [&name](const auto & interface)
+                state_interfaces_.cbegin(), state_interfaces_.cend(), [&name](const auto& interface)
                 {
-                    return interface.get_name() == name &&
+                    return interface.get_prefix_name() == name &&
                         interface.get_interface_name() == hardware_interface::HW_IF_POSITION;
                 });
 
@@ -787,7 +787,7 @@ namespace whi_swerve_steering_controller
                 command_interfaces_.begin(), command_interfaces_.end(),
                 [&name](const auto & interface)
                 {
-                    return interface.get_name() == name &&
+                    return interface.get_prefix_name() == name &&
                         interface.get_interface_name() == hardware_interface::HW_IF_POSITION;
                 });
 
