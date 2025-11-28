@@ -16,17 +16,14 @@ Changelog:
 2025-xx-xx: xxx
 ******************************************************************/
 #pragma once
-#include "whi_swerve_steering_controller/visibility_control.h"
 #include "whi_swerve_steering_controller/speed_limiter.hpp"
 #include "whi_swerve_steering_controller/odometry.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/state.hpp>
-#include <realtime_tools/realtime_box.h>
-#include <realtime_tools/realtime_buffer.h>
 #include <realtime_tools/realtime_publisher.h>
-#include <controller_interface/controller_interface.hpp>
-#include <hardware_interface/handle.hpp>
+#include "realtime_tools/realtime_thread_safe_box.hpp"
+#include <controller_interface/chainable_controller_interface.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
@@ -36,69 +33,68 @@ Changelog:
 
 namespace whi_swerve_steering_controller
 {
-    class WhiSwerveSteeringController : public controller_interface::ControllerInterface
+    class WhiSwerveSteeringController : public controller_interface::ChainableControllerInterface
     {
         using Twist = geometry_msgs::msg::TwistStamped;
 
     public:
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         WhiSwerveSteeringController();
-
         virtual ~WhiSwerveSteeringController() = default;
 
     public:
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::InterfaceConfiguration command_interface_configuration() const override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::InterfaceConfiguration state_interface_configuration() const override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
-        controller_interface::return_type update(const rclcpp::Time& Time,
+        // Chainable controller replaces update() with the following two functions
+        controller_interface::return_type update_reference_from_subscribers(const rclcpp::Time& Time,
             const rclcpp::Duration& Period) override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
+        controller_interface::return_type update_and_write_commands(const rclcpp::Time& Time,
+            const rclcpp::Duration& Period) override;
+
         controller_interface::CallbackReturn on_init() override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::CallbackReturn on_configure(
             const rclcpp_lifecycle::State& PreState) override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::CallbackReturn on_activate(
             const rclcpp_lifecycle::State& PreState) override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::CallbackReturn on_deactivate(
             const rclcpp_lifecycle::State& PreState) override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::CallbackReturn on_cleanup(
             const rclcpp_lifecycle::State &PreState) override;
 
-        WHI_SWERVE_STEERING_CONTROLLER_PUBLIC
         controller_interface::CallbackReturn on_error(
             const rclcpp_lifecycle::State &PreState) override;
 
     protected:
+        bool on_set_chained_mode(bool ChainedMode) override;
+        std::vector<hardware_interface::CommandInterface> on_export_reference_interfaces() override;
+
         bool reset();
         void halt();
         bool getWheelsParam();
 
         struct WheelHandle
         {
-            std::reference_wrapper<const hardware_interface::LoanedStateInterface> velocity_sta_;
+            std::optional<std::reference_wrapper<const hardware_interface::LoanedStateInterface>> velocity_sta_;
             std::reference_wrapper<hardware_interface::LoanedCommandInterface> velocity_cmd_;
         };
         CallbackReturn configureWheelSide(const std::string& Side, const std::vector<std::string>& WheelNames,
             std::vector<WheelHandle>& RegisteredHandles);
         struct SteerHandle
         {
-            std::reference_wrapper<const hardware_interface::LoanedStateInterface> position_sta_;
+            std::optional<std::reference_wrapper<const hardware_interface::LoanedStateInterface>> position_sta_;
             std::reference_wrapper<hardware_interface::LoanedCommandInterface> position_cmd_;
         };
         CallbackReturn configureSteerSide(const std::string& Side, const std::vector<std::string>& SteerNames,
             std::vector<SteerHandle>& RegisteredHandles);
+
+    private:
+        void reset_buffers();
 
     protected:
         std::vector<WheelHandle> registered_left_wheel_handles_;
@@ -132,25 +128,56 @@ namespace whi_swerve_steering_controller
             std::array<double, 6> twist_covariance_diagonal_;
         } odom_params_;
 
+        /* Number of wheels on each side of the robot. This is important to take the wheels slip into
+        * account when multiple wheels on each side are present. If there are more wheels then control
+        * signals for each side, you should enter number for control signals. For example, Husky has two
+        * wheels on each side, but they use one control signal, in this case '1' is the correct value of
+        * the parameter. */
+        int wheels_per_side_;
+
         Odometry odometry_;
+
+        // Timeout to consider cmd_vel commands old
+        rclcpp::Duration cmd_vel_timeout_ = rclcpp::Duration::from_seconds(0.5);
 
         std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> odometry_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>> realtime_odometry_publisher_{ nullptr };
+        nav_msgs::msg::Odometry odometry_message_;
+
         std::shared_ptr<rclcpp::Publisher<tf2_msgs::msg::TFMessage>> odometry_transform_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>
             realtime_odometry_transform_publisher_{ nullptr };
-
-        realtime_tools::RealtimeBox<std::shared_ptr<Twist>> received_velocity_msg_ptr_{nullptr};
-        std::queue<Twist> previous_commands_; // last two commands
+        tf2_msgs::msg::TFMessage odometry_transform_message_;
 
         bool subscriber_is_active_{ false };
         rclcpp::Subscription<Twist>::SharedPtr velocity_command_subscriber_{ nullptr };
         rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr velocity_command_unstamped_subscriber_{ nullptr };
 
+        // the realtime container to exchange the reference from subscriber
+        realtime_tools::RealtimeThreadSafeBox<Twist> received_velocity_msg_;
+        // save the last reference in case of unable to get value from box
+        Twist command_msg_;
+
+        std::queue<Twist> previous_two_commands_;
+
         // speed limiters
-        SpeedLimiter limiter_linear_x_;
-        SpeedLimiter limiter_linear_y_;
-        SpeedLimiter limiter_angular_;
+        std::unique_ptr<SpeedLimiter> limiter_linear_x_;
+        std::unique_ptr<SpeedLimiter> limiter_linear_y_;
+        std::unique_ptr<SpeedLimiter> limiter_angular_;
+
+        bool publish_limited_velocity_{ false };
+        std::shared_ptr<rclcpp::Publisher<Twist>> limited_velocity_publisher_{ nullptr };
+        std::shared_ptr<realtime_tools::RealtimePublisher<Twist>> realtime_limited_velocity_publisher_{ nullptr} ;
+        std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::Twist>> unstamped_limited_velocity_publisher_{ nullptr };
+        std::shared_ptr<realtime_tools::RealtimePublisher<geometry_msgs::msg::Twist>> realtime_unstamped_limited_velocity_publisher_{ nullptr} ;
+        Twist limited_velocity_message_;
+
+        rclcpp::Time previous_update_timestamp_{ 0 };
+
+        // publish rate limiter
+        double publish_rate_{ 50.0 };
+        rclcpp::Duration publish_period_{ rclcpp::Duration::from_nanoseconds(0) };
+        rclcpp::Time previous_publish_timestamp_{ 0, 0, RCL_CLOCK_UNINITIALIZED };
 
         // command values
         std::vector<double> wheels_angular_;
@@ -158,19 +185,7 @@ namespace whi_swerve_steering_controller
         std::vector<double> pre_steers_angle_;
         std::vector<double> stable_steers_angle_;
 
-        std::chrono::milliseconds cmd_vel_timeout_{ 500 };
         bool use_stamped_vel_{ false };
-        bool is_halted{ false };
 
-        bool publish_limited_velocity_{ false };
-        std::shared_ptr<rclcpp::Publisher<Twist>> limited_velocity_publisher_{ nullptr };
-        std::shared_ptr<realtime_tools::RealtimePublisher<Twist>> realtime_limited_velocity_publisher_{ nullptr} ;
-
-        // publish rate limiter
-        double publish_rate_{ 50.0 };
-        rclcpp::Duration publish_period_{ 0, 0 };
-        rclcpp::Time previous_publish_timestamp_{ 0 };
-
-        rclcpp::Time previous_update_timestamp_{ 0 };
     };
 }  // namespace whi_swerve_steering_controller

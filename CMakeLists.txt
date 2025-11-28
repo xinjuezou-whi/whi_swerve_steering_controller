@@ -18,6 +18,7 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_ros REQUIRED)
+find_package(control_toolbox REQUIRED)
 find_package(controller_interface REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(hardware_interface REQUIRED)
@@ -46,6 +47,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 ament_target_dependencies(${PROJECT_NAME}
   builtin_interfaces
+  control_toolbox
   controller_interface
   geometry_msgs
   hardware_interface

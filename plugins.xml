@@ -1,7 +1,7 @@
 <library path="whi_swerve_steering_controller">
   <class name="whi_swerve_steering_controller/WhiSwerveSteeringController"
          type="whi_swerve_steering_controller::WhiSwerveSteeringController"
-         base_class_type="controller_interface::ControllerInterface">
+         base_class_type="controller_interface::ChainableControllerInterface">
   <description>
     The swerve steering drive controller transforms linear and angular velocity messages into signals for each wheel(s) and steering joint(s)
   </description>
