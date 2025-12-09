@@ -117,11 +117,6 @@ namespace whi_swerve_steering_controller
         double& linearCommandY = command.twist.linear.y;
         double& angularCommand = command.twist.angular.z;
 
-        auto isZero = [](double Value, double Epsilon = 1e-9) -> bool
-        {
-            return std::abs(Value) < Epsilon;
-        };
-
         std::vector<double> wheelsAngular, steerAngle;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
@@ -873,6 +868,7 @@ namespace whi_swerve_steering_controller
 
             return false;
         }
+
         int leftSideSize = left_steer_names_.size();
         for (auto i = 0; i < leftSideSize + right_wheel_names_.size(); ++i)
         {
