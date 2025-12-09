@@ -122,7 +122,7 @@ namespace whi_swerve_steering_controller
             return std::abs(Value) < Epsilon;
         };
 
-        std::vector<double> wheelsAngular, steerAngle, steerAngleModulated;
+        std::vector<double> wheelsAngular, steerAngle;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
             const double angular = registered_left_wheel_handles_[i].velocity_sta_.get().get_value();
@@ -151,14 +151,6 @@ namespace whi_swerve_steering_controller
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on left side", i);
                 return controller_interface::return_type::ERROR;
             }
-            steerAngleModulated.push_back(angle);
-
-            // restore the normal coordinate
-            if (!isZero(angle) && wheelsAngular[i] < 0.0)
-            {
-                angle -= signOf(angle) * M_PI;
-                wheelsAngular[i] *= -1.0;
-            }
             steerAngle.push_back(angle);
 #ifdef DEBUG
             std::cout << "angle of " << left_steer_names_[i] << ": " << angle << std::endl;
@@ -171,14 +163,6 @@ namespace whi_swerve_steering_controller
             {
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i + left_steer_names_.size());
                 return controller_interface::return_type::ERROR;
-            }
-            steerAngleModulated.push_back(angle);
-
-            // restore the normal coordinate
-            if (!isZero(angle) && wheelsAngular[i + left_steer_names_.size()] < 0.0)
-            {
-                angle -= signOf(angle) * M_PI;
-                wheelsAngular[i + left_steer_names_.size()] *= -1.0;
             }
             steerAngle.push_back(angle);
 #ifdef DEBUG
@@ -301,7 +285,7 @@ namespace whi_swerve_steering_controller
             stable = true;
             for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
             {
-                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steerAngleModulated[i])) > angles::from_degrees(2.0))
+                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steerAngle[i])) > angles::from_degrees(2.0))
                 {
                     stable = false;
                     break;
@@ -337,7 +321,7 @@ namespace whi_swerve_steering_controller
     controller_interface::CallbackReturn WhiSwerveSteeringController::on_init()
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.2.3" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.3.1" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         try
@@ -889,10 +873,11 @@ namespace whi_swerve_steering_controller
 
             return false;
         }
-        for (auto i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
+        int leftSideSize = left_steer_names_.size();
+        for (auto i = 0; i < leftSideSize + right_wheel_names_.size(); ++i)
         {
-            wheels_[i].radius_ = i < left_wheel_names_.size() ? radiusLeft[i] * radiusMultiLeft[i] :
-                radiusRight[i - radiusLeft.size()] * radiusMultiRight[i - radiusLeft.size()];
+            wheels_[i].radius_ = i < leftSideSize ? radiusLeft[i] * radiusMultiLeft[i] :
+                radiusRight[i - leftSideSize] * radiusMultiRight[i - leftSideSize];
 #ifdef DEBUG
             std::cout << "index " << i << " radius: " << wheels_[i].radius_ << std::endl;
 #endif
@@ -929,7 +914,6 @@ namespace whi_swerve_steering_controller
             rightPositions.push_back(std::array<double, 2>{flatenPosRight[i * 2], flatenPosRight[i * 2 + 1]});
         }
 
-        int leftSideSize = left_steer_names_.size();
         for (auto i = 0; i < leftSideSize + right_steer_names_.size(); ++i)
         {
             wheels_[i].position_ = i < leftSideSize ? leftPositions[i] : rightPositions[i - leftSideSize];
