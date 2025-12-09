@@ -134,7 +134,7 @@ namespace whi_swerve_steering_controller
             return controller_interface::return_type::OK;
         }
 
-        std::vector<double> wheelsAngular, steersAngle, steersAngleModulated;
+        std::vector<double> wheelsAngular, steersAngle;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
             const auto angularOp = registered_left_wheel_handles_[i].velocity_sta_.value().get().get_optional();
@@ -162,25 +162,12 @@ namespace whi_swerve_steering_controller
             }
         }
 
-        auto isZero = [](double Value, double Epsilon = 1e-9) -> bool
-        {
-            return std::abs(Value) < Epsilon;
-        };
         for (size_t i = 0; i < left_steer_names_.size(); ++i)
         {
             const auto angleOp = registered_left_steer_handles_[i].position_sta_.value().get().get_optional();
             if (angleOp.has_value())
             {
-                auto angle = angleOp.value();
-                steersAngleModulated.push_back(angle);
-
-                // restore the normal coordinate
-                if (!isZero(angle) && wheelsAngular[i] < 0.0)
-                {
-                    angle -= signOf(angle) * M_PI;
-                    wheelsAngular[i] *= -1.0;
-                }
-                steersAngle.push_back(angle);
+                steersAngle.push_back(angleOp.value());
 #ifdef DEBUG
                 std::cout << "angle of " << left_steer_names_[i] << ": " << angle << std::endl;
 #endif
@@ -196,16 +183,7 @@ namespace whi_swerve_steering_controller
             const auto angleOp = registered_right_steer_handles_[i].position_sta_.value().get().get_optional();
             if (angleOp.has_value())
             {
-                auto angle = angleOp.value();
-                steersAngleModulated.push_back(angle);
-
-                // restore the normal coordinate
-                if (!isZero(angle) && wheelsAngular[i + left_steer_names_.size()] < 0.0)
-                {
-                    angle -= signOf(angle) * M_PI;
-                    wheelsAngular[i + left_steer_names_.size()] *= -1.0;
-                }
-                steersAngle.push_back(angle);
+                steersAngle.push_back(angleOp.value());
     #ifdef DEBUG
                 std::cout << "angle of " << right_steer_names_[i] << ": " << angle << std::endl;
     #endif
@@ -339,7 +317,7 @@ namespace whi_swerve_steering_controller
             stable = true;
             for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
             {
-                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steersAngleModulated[i])) > angles::from_degrees(2.0))
+                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steersAngle[i])) > angles::from_degrees(2.0))
                 {
                     stable = false;
                     break;
@@ -964,10 +942,12 @@ namespace whi_swerve_steering_controller
 
             return false;
         }
-        for (auto i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
+
+        int leftSideSize = left_steer_names_.size();
+        for (auto i = 0; i < leftSideSize + right_wheel_names_.size(); ++i)
         {
-            wheels_[i].radius_ = i < left_wheel_names_.size() ? radiusLeft[i] * radiusMultiLeft[i] :
-                radiusRight[i - radiusLeft.size()] * radiusMultiRight[i - radiusLeft.size()];
+            wheels_[i].radius_ = i < leftSideSize ? radiusLeft[i] * radiusMultiLeft[i] :
+                radiusRight[i - leftSideSize] * radiusMultiRight[i - leftSideSize];
 #ifdef DEBUG
             std::cout << "index " << i << " radius: " << wheels_[i].radius_ << std::endl;
 #endif
@@ -1004,7 +984,6 @@ namespace whi_swerve_steering_controller
             rightPositions.push_back(std::array<double, 2>{flatenPosRight[i * 2], flatenPosRight[i * 2 + 1]});
         }
 
-        int leftSideSize = left_steer_names_.size();
         for (auto i = 0; i < leftSideSize + right_steer_names_.size(); ++i)
         {
             wheels_[i].position_ = i < leftSideSize ? leftPositions[i] : rightPositions[i - leftSideSize];
