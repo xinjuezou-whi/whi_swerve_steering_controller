@@ -1,7 +1,11 @@
 # whi_swerve_steering_controller
 Swerve steer controller under ROS 2
 
+4 steers with a central pivot
 ![swerve](https://github.com/user-attachments/assets/a93bec30-9be7-4a34-87e6-8ed58a059426)
+
+6 steers with a central pivot
+![6](https://github.com/user-attachments/assets/78a452ed-ccaf-413d-a917-02cc289f9edf)
 
 ## Dependency
 
