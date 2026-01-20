@@ -102,7 +102,7 @@ namespace whi_swerve_steering_controller
         {
             reference_interfaces_[0] = command_msg_.twist.linear.x;
             reference_interfaces_[1] = command_msg_.twist.linear.y;
-            reference_interfaces_[1] = command_msg_.twist.angular.z;
+            reference_interfaces_[2] = command_msg_.twist.angular.z;
         }
         else
         {
@@ -184,9 +184,9 @@ namespace whi_swerve_steering_controller
             if (angleOp.has_value())
             {
                 steersAngle.push_back(angleOp.value());
-    #ifdef DEBUG
+#ifdef DEBUG
                 std::cout << "angle of " << right_steer_names_[i] << ": " << angle << std::endl;
-    #endif
+#endif
             }
             else
             {
@@ -396,8 +396,22 @@ namespace whi_swerve_steering_controller
             auto_declare<double>("linear.x.min_velocity", NAN);
             auto_declare<double>("linear.x.max_acceleration", NAN);
             auto_declare<double>("linear.x.min_acceleration", NAN);
+            auto_declare<double>("linear.x.max_deceleration", NAN);
+            auto_declare<double>("linear.x.min_deceleration", NAN);
             auto_declare<double>("linear.x.max_jerk", NAN);
             auto_declare<double>("linear.x.min_jerk", NAN);
+
+            auto_declare<bool>("linear.y.has_velocity_limits", false);
+            auto_declare<bool>("linear.y.has_acceleration_limits", false);
+            auto_declare<bool>("linear.y.has_jerk_limits", false);
+            auto_declare<double>("linear.y.max_velocity", NAN);
+            auto_declare<double>("linear.y.min_velocity", NAN);
+            auto_declare<double>("linear.y.max_acceleration", NAN);
+            auto_declare<double>("linear.y.min_acceleration", NAN);
+            auto_declare<double>("linear.y.max_deceleration", NAN);
+            auto_declare<double>("linear.y.min_deceleration", NAN);
+            auto_declare<double>("linear.y.max_jerk", NAN);
+            auto_declare<double>("linear.y.min_jerk", NAN);
 
             auto_declare<bool>("angular.z.has_velocity_limits", false);
             auto_declare<bool>("angular.z.has_acceleration_limits", false);
@@ -406,6 +420,8 @@ namespace whi_swerve_steering_controller
             auto_declare<double>("angular.z.min_velocity", NAN);
             auto_declare<double>("angular.z.max_acceleration", NAN);
             auto_declare<double>("angular.z.min_acceleration", NAN);
+            auto_declare<double>("angular.z.max_deceleration", NAN);
+            auto_declare<double>("angular.z.min_deceleration", NAN);
             auto_declare<double>("angular.z.max_jerk", NAN);
             auto_declare<double>("angular.z.min_jerk", NAN);
         }
@@ -557,6 +573,9 @@ namespace whi_swerve_steering_controller
             RCLCPP_ERROR(logger,
                 "\033[1;31merror configuring angular speed limiter: %s\033[0m", e.what());
         }
+
+        // Allocate reference interfaces if needed
+        reference_interfaces_.resize(3, std::numeric_limits<double>::quiet_NaN());
 
         if (!reset())
         {
