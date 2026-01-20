@@ -134,23 +134,39 @@ namespace whi_swerve_steering_controller
 
         Odometry odometry_;
 
+        // Timeout to consider cmd_vel commands old
+        std::chrono::milliseconds cmd_vel_timeout_{ 500 };
+
         std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> odometry_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>> realtime_odometry_publisher_{ nullptr };
         std::shared_ptr<rclcpp::Publisher<tf2_msgs::msg::TFMessage>> odometry_transform_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<tf2_msgs::msg::TFMessage>>
             realtime_odometry_transform_publisher_{ nullptr };
 
-        realtime_tools::RealtimeBox<std::shared_ptr<Twist>> received_velocity_msg_ptr_{nullptr};
-        std::queue<Twist> previous_commands_; // last two commands
-
         bool subscriber_is_active_{ false };
         rclcpp::Subscription<Twist>::SharedPtr velocity_command_subscriber_{ nullptr };
         rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr velocity_command_unstamped_subscriber_{ nullptr };
+
+        realtime_tools::RealtimeBox<std::shared_ptr<Twist>> received_velocity_msg_ptr_{nullptr};
+
+        // last two commands
+        std::queue<Twist> previous_two_commands_;
 
         // speed limiters
         SpeedLimiter limiter_linear_x_;
         SpeedLimiter limiter_linear_y_;
         SpeedLimiter limiter_angular_;
+
+        bool publish_limited_velocity_{ false };
+        std::shared_ptr<rclcpp::Publisher<Twist>> limited_velocity_publisher_{ nullptr };
+        std::shared_ptr<realtime_tools::RealtimePublisher<Twist>> realtime_limited_velocity_publisher_{ nullptr} ;
+
+        rclcpp::Time previous_update_timestamp_{ 0 };
+
+        // publish rate limiter
+        double publish_rate_{ 50.0 };
+        rclcpp::Duration publish_period_{ 0, 0 };
+        rclcpp::Time previous_publish_timestamp_{ 0 };
 
         // command values
         std::vector<double> wheels_angular_;
@@ -158,19 +174,7 @@ namespace whi_swerve_steering_controller
         std::vector<double> pre_steers_angle_;
         std::vector<double> stable_steers_angle_;
 
-        std::chrono::milliseconds cmd_vel_timeout_{ 500 };
         bool use_stamped_vel_{ false };
         bool is_halted{ false };
-
-        bool publish_limited_velocity_{ false };
-        std::shared_ptr<rclcpp::Publisher<Twist>> limited_velocity_publisher_{ nullptr };
-        std::shared_ptr<realtime_tools::RealtimePublisher<Twist>> realtime_limited_velocity_publisher_{ nullptr} ;
-
-        // publish rate limiter
-        double publish_rate_{ 50.0 };
-        rclcpp::Duration publish_period_{ 0, 0 };
-        rclcpp::Time previous_publish_timestamp_{ 0 };
-
-        rclcpp::Time previous_update_timestamp_{ 0 };
     };
 }  // namespace whi_swerve_steering_controller

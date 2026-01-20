@@ -16,7 +16,7 @@ All text above must be included in any redistribution.
 
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <lifecycle_msgs/msg/state.hpp>
-#include <tf2/LinearMath/Quaternion.h>
+#include <tf2/LinearMath/Quaternion.hpp>
 #include <angles/angles.h>
 
 #include <cmath>
@@ -207,8 +207,8 @@ namespace whi_swerve_steering_controller
 
         previous_update_timestamp_ = Time;
 
-        auto& lastCommand = previous_commands_.back().twist;
-        auto& secondToLastCommand = previous_commands_.front().twist;
+        auto& lastCommand = previous_two_commands_.back().twist;
+        auto& secondToLastCommand = previous_two_commands_.front().twist;
         limiter_linear_x_.limit(
             linearCommandX, lastCommand.linear.x, secondToLastCommand.linear.x, Period.seconds());
         limiter_linear_y_.limit(
@@ -216,8 +216,8 @@ namespace whi_swerve_steering_controller
         limiter_angular_.limit(
             angularCommand, lastCommand.angular.z, secondToLastCommand.angular.z, Period.seconds());
 
-        previous_commands_.pop();
-        previous_commands_.emplace(command);
+        previous_two_commands_.pop();
+        previous_two_commands_.emplace(command);
 
         // publish limited velocity
         if (publish_limited_velocity_ && realtime_limited_velocity_publisher_->trylock())
@@ -434,8 +434,7 @@ namespace whi_swerve_steering_controller
 
         odometry_.init(get_node()->get_clock()->now());
         odometry_.setWheelsParams(radii, steerPositions);
-        odometry_.setVelocityRollingWindowSize(
-            get_node()->get_parameter("velocity_rolling_window_size").as_int());
+        odometry_.setVelocityRollingWindowSize(get_node()->get_parameter("velocity_rolling_window_size").as_int());
 
         odom_params_.odom_frame_id_ = get_node()->get_parameter("odom_frame_id").as_string();
         odom_params_.base_frame_id_ = get_node()->get_parameter("base_frame_id").as_string();
@@ -519,8 +518,8 @@ namespace whi_swerve_steering_controller
         received_velocity_msg_ptr_.set(std::make_shared<Twist>(emptyTwist));
 
         // Fill last two commands with default constructed commands
-        previous_commands_.emplace(emptyTwist);
-        previous_commands_.emplace(emptyTwist);
+        previous_two_commands_.emplace(emptyTwist);
+        previous_two_commands_.emplace(emptyTwist);
 
         // initialize command subscriber
         if (use_stamped_vel_)
@@ -789,7 +788,7 @@ namespace whi_swerve_steering_controller
 
         // release the old queue
         std::queue<Twist> empty;
-        std::swap(previous_commands_, empty);
+        std::swap(previous_two_commands_, empty);
 
         registered_left_wheel_handles_.clear();
         registered_right_wheel_handles_.clear();
