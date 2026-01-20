@@ -21,8 +21,8 @@ Changelog:
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/state.hpp>
-#include <realtime_tools/realtime_publisher.h>
-#include "realtime_tools/realtime_thread_safe_box.hpp"
+#include <realtime_tools/realtime_publisher.hpp>
+#include <realtime_tools/realtime_thread_safe_box.hpp>
 #include <controller_interface/chainable_controller_interface.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
@@ -128,17 +128,10 @@ namespace whi_swerve_steering_controller
             std::array<double, 6> twist_covariance_diagonal_;
         } odom_params_;
 
-        /* Number of wheels on each side of the robot. This is important to take the wheels slip into
-        * account when multiple wheels on each side are present. If there are more wheels then control
-        * signals for each side, you should enter number for control signals. For example, Husky has two
-        * wheels on each side, but they use one control signal, in this case '1' is the correct value of
-        * the parameter. */
-        int wheels_per_side_;
-
         Odometry odometry_;
 
         // Timeout to consider cmd_vel commands old
-        rclcpp::Duration cmd_vel_timeout_ = rclcpp::Duration::from_seconds(0.5);
+        rclcpp::Duration cmd_vel_timeout_{ rclcpp::Duration::from_seconds(0.5) };
 
         std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> odometry_publisher_{ nullptr };
         std::shared_ptr<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>> realtime_odometry_publisher_{ nullptr };
@@ -158,6 +151,7 @@ namespace whi_swerve_steering_controller
         // save the last reference in case of unable to get value from box
         Twist command_msg_;
 
+        // last two commands
         std::queue<Twist> previous_two_commands_;
 
         // speed limiters

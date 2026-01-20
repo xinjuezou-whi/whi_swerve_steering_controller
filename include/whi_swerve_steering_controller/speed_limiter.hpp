@@ -29,12 +29,10 @@ namespace whi_swerve_steering_controller
          * \brief Constructor
          * \param [in] min_velocity Minimum velocity [m/s], usually <= 0
          * \param [in] max_velocity Maximum velocity [m/s], usually >= 0
-         * \param [in] max_acceleration_reverse Maximum acceleration in reverse direction [m/s^2], usually
-         * <= 0
+         * \param [in] max_acceleration_reverse Maximum acceleration in reverse direction [m/s^2], usually <= 0
          * \param [in] max_acceleration Maximum acceleration [m/s^2], usually >= 0
          * \param [in] max_deceleration Maximum deceleration [m/s^2], usually <= 0
-         * \param [in] max_deceleration_reverse Maximum deceleration in reverse direction [m/s^2], usually
-         * >= 0
+         * \param [in] max_deceleration_reverse Maximum deceleration in reverse direction [m/s^2], usually >= 0
          * \param [in] min_jerk Minimum jerk [m/s^3], usually <= 0
          * \param [in] max_jerk Maximum jerk [m/s^3], usually >= 0
          *
@@ -44,13 +42,14 @@ namespace whi_swerve_steering_controller
          * If min_first_derivative_pos/max_first_derivative_neg values are NAN, symmetric limits are used
          */
         explicit SpeedLimiter(
-            double min_velocity, double max_velocity, double max_acceleration_reverse,
-            double max_acceleration, double max_deceleration, double max_deceleration_reverse,
+            double min_velocity, double max_velocity,
+            double max_acceleration_reverse, double max_acceleration,
+            double max_deceleration, double max_deceleration_reverse,
             double min_jerk, double max_jerk)
         {
             speed_limiter_ = control_toolbox::RateLimiter<double>(
-            min_velocity, max_velocity, max_acceleration_reverse, max_acceleration, max_deceleration,
-            max_deceleration_reverse, min_jerk, max_jerk);
+                min_velocity, max_velocity, max_acceleration_reverse, max_acceleration, max_deceleration,
+                max_deceleration_reverse, min_jerk, max_jerk);
         }
 
 

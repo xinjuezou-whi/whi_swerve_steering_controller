@@ -519,19 +519,19 @@ namespace whi_swerve_steering_controller
             limiter_linear_x_ = std::make_unique<SpeedLimiter>(
                 get_node()->get_parameter("linear.x.min_velocity").as_double(),
                 get_node()->get_parameter("linear.x.max_velocity").as_double(),
-                get_node()->get_parameter("linear.x.max_acceleration_reverse").as_double(),
+                get_node()->get_parameter("linear.x.min_acceleration").as_double(),
                 get_node()->get_parameter("linear.x.max_acceleration").as_double(),
-                get_node()->get_parameter("linear.x.max_deceleration").as_double(),
-                get_node()->get_parameter("linear.x.max_deceleration_reverse").as_double(),
+                get_node()->get_parameter("linear.x.max_deceleration").as_double(), // usually <= 0
+                get_node()->get_parameter("linear.x.min_deceleration").as_double(), // usually >= 0
                 get_node()->get_parameter("linear.x.min_jerk").as_double(),
                 get_node()->get_parameter("linear.x.max_jerk").as_double());
             limiter_linear_y_ = std::make_unique<SpeedLimiter>(
                 get_node()->get_parameter("linear.y.min_velocity").as_double(),
                 get_node()->get_parameter("linear.y.max_velocity").as_double(),
-                get_node()->get_parameter("linear.y.max_acceleration_reverse").as_double(),
+                get_node()->get_parameter("linear.y.min_acceleration").as_double(),
                 get_node()->get_parameter("linear.y.max_acceleration").as_double(),
-                get_node()->get_parameter("linear.y.max_deceleration").as_double(),
-                get_node()->get_parameter("linear.y.max_deceleration_reverse").as_double(),
+                get_node()->get_parameter("linear.y.max_deceleration").as_double(), // usually <= 0
+                get_node()->get_parameter("linear.y.min_deceleration").as_double(), // usually >= 0
                 get_node()->get_parameter("linear.y.min_jerk").as_double(),
                 get_node()->get_parameter("linear.y.max_jerk").as_double());
         }
@@ -545,10 +545,10 @@ namespace whi_swerve_steering_controller
             limiter_angular_ = std::make_unique<SpeedLimiter>(
                 get_node()->get_parameter("angular.z.min_velocity").as_double(),
                 get_node()->get_parameter("angular.z.max_velocity").as_double(),
-                get_node()->get_parameter("angular.z.max_acceleration_reverse").as_double(),
+                get_node()->get_parameter("angular.z.min_acceleration").as_double(),
                 get_node()->get_parameter("angular.z.max_acceleration").as_double(),
-                get_node()->get_parameter("angular.z.max_deceleration").as_double(),
-                get_node()->get_parameter("angular.z.max_deceleration_reverse").as_double(),
+                get_node()->get_parameter("angular.z.max_deceleration").as_double(), // usually <= 0
+                get_node()->get_parameter("angular.z.min_deceleration").as_double(), // usually >= 0
                 get_node()->get_parameter("angular.z.min_jerk").as_double(),
                 get_node()->get_parameter("angular.z.max_jerk").as_double());
         }
@@ -633,13 +633,8 @@ namespace whi_swerve_steering_controller
         realtime_odometry_publisher_ =
             std::make_shared<realtime_tools::RealtimePublisher<nav_msgs::msg::Odometry>>(odometry_publisher_);
 
-        // limit the publication on the topics /odom and /tf
-        publish_rate_ = get_node()->get_parameter("publish_rate").as_double();
-        publish_period_ = rclcpp::Duration::from_seconds(1.0 / publish_rate_);
-
-        // initialize odom values zeros
-        odometry_message_.twist =
-            geometry_msgs::msg::TwistWithCovariance(rosidl_runtime_cpp::MessageInitialization::ALL);
+        // initialize odom values zeros first
+        odometry_message_.twist = geometry_msgs::msg::TwistWithCovariance(rosidl_runtime_cpp::MessageInitialization::ALL);
         const size_t NUM_DIMENSIONS = 6;
         for (size_t i = 0; i < NUM_DIMENSIONS; ++i)
         {
@@ -659,6 +654,11 @@ namespace whi_swerve_steering_controller
         odometry_transform_message_.transforms.resize(1);
         odometry_transform_message_.transforms.front().header.frame_id = odom_params_.odom_frame_id_;
         odometry_transform_message_.transforms.front().child_frame_id = odom_params_.base_frame_id_;
+
+        // limit the publication on the topics /odom and /tf
+        publish_rate_ = get_node()->get_parameter("publish_rate").as_double();
+        publish_period_ = rclcpp::Duration::from_seconds(1.0 / publish_rate_);
+        previous_publish_timestamp_ = get_node()->get_clock()->now();
 
         previous_update_timestamp_ = get_node()->get_clock()->now();
 
@@ -894,6 +894,8 @@ namespace whi_swerve_steering_controller
 
         haltWheels(registered_left_wheel_handles_);
         haltWheels(registered_right_wheel_handles_);
+
+        // TBD:: do we need restore the steer to 0 position?
     }
 
     bool WhiSwerveSteeringController::getWheelsParam()
