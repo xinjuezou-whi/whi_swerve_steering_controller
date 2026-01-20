@@ -22,11 +22,12 @@ Check the hardware interface:
 ros2 control list_hardware_interfaces 
 ```
 
-<img width="1170" height="700" alt="image" src="https://github.com/user-attachments/assets/831363a3-31c4-4bb8-b3d3-2384c457e9e3" />
+<img width="1461" height="1149" alt="屏幕截图 2026-01-20 171227" src="https://github.com/user-attachments/assets/b6e256b1-6e59-473a-a19c-0a387d8d3866" />
 
 Check the status:
 ```
 ros2 control list_controllers
 ```
 
-<img width="1170" height="204" alt="image" src="https://github.com/user-attachments/assets/c7e902b0-bc7d-4ae4-8e30-68c422781809" />
+<img width="545" height="103" alt="image" src="https://github.com/user-attachments/assets/a4ea891c-c244-4938-86da-b7c4bf2a7127" />
+
