@@ -117,7 +117,7 @@ namespace whi_swerve_steering_controller
         double& linearCommandY = command.twist.linear.y;
         double& angularCommand = command.twist.angular.z;
 
-        std::vector<double> wheelsAngular, steerAngle;
+        std::vector<double> wheelsAngular, steersAngle;
         for (size_t i = 0; i < left_wheel_names_.size(); ++i)
         {
             const double angular = registered_left_wheel_handles_[i].velocity_sta_.get().get_value();
@@ -146,7 +146,7 @@ namespace whi_swerve_steering_controller
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on left side", i);
                 return controller_interface::return_type::ERROR;
             }
-            steerAngle.push_back(angle);
+            steersAngle.push_back(angle);
 #ifdef DEBUG
             std::cout << "angle of " << left_steer_names_[i] << ": " << angle << std::endl;
 #endif
@@ -159,13 +159,13 @@ namespace whi_swerve_steering_controller
                 RCLCPP_ERROR(logger, "steer angle is invalid for index [%zu] on right side", i + left_steer_names_.size());
                 return controller_interface::return_type::ERROR;
             }
-            steerAngle.push_back(angle);
+            steersAngle.push_back(angle);
 #ifdef DEBUG
             std::cout << "angle of " << right_steer_names_[i] << ": " << angle << std::endl;
 #endif
         }
 
-        odometry_.update(wheelsAngular, steerAngle, Time);
+        odometry_.update(wheelsAngular, steersAngle, Time);
 
         // publish odometry message
         tf2::Quaternion orientation;
@@ -280,7 +280,7 @@ namespace whi_swerve_steering_controller
             stable = true;
             for (size_t i = 0; i < left_wheel_names_.size() + right_wheel_names_.size(); ++i)
             {
-                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steerAngle[i])) > angles::from_degrees(2.0))
+                if (fabs(fabs(stable_steers_angle_[i]) - fabs(steersAngle[i])) > angles::from_degrees(2.0))
                 {
                     stable = false;
                     break;
