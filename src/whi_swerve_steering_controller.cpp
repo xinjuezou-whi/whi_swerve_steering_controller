@@ -98,7 +98,8 @@ namespace whi_swerve_steering_controller
             reference_interfaces_[1] = 0.0;
             reference_interfaces_[2] = 0.0;
         }
-        else if (std::isfinite(command_msg_.twist.linear.x) && std::isfinite(command_msg_.twist.angular.z))
+        else if (std::isfinite(command_msg_.twist.linear.x) && std::isfinite(command_msg_.twist.linear.y) &&
+            std::isfinite(command_msg_.twist.angular.z))
         {
             reference_interfaces_[0] = command_msg_.twist.linear.x;
             reference_interfaces_[1] = command_msg_.twist.linear.y;
@@ -1029,17 +1030,17 @@ namespace whi_swerve_steering_controller
 
         referenceInterfaces.push_back(
             hardware_interface::CommandInterface(
-            get_node()->get_name() + std::string("/linear_x"), hardware_interface::HW_IF_VELOCITY,
+            get_node()->get_name() + std::string("/linear/x"), hardware_interface::HW_IF_VELOCITY,
             &reference_interfaces_[0]));
 
         referenceInterfaces.push_back(
             hardware_interface::CommandInterface(
-            get_node()->get_name() + std::string("/linear_y"), hardware_interface::HW_IF_VELOCITY,
+            get_node()->get_name() + std::string("/linear/y"), hardware_interface::HW_IF_VELOCITY,
             &reference_interfaces_[1]));
 
         referenceInterfaces.push_back(
             hardware_interface::CommandInterface(
-            get_node()->get_name() + std::string("/angular"), hardware_interface::HW_IF_VELOCITY,
+            get_node()->get_name() + std::string("/angular/z"), hardware_interface::HW_IF_VELOCITY,
             &reference_interfaces_[2]));
 
         return referenceInterfaces;
