@@ -316,7 +316,7 @@ namespace whi_swerve_steering_controller
     controller_interface::CallbackReturn WhiSwerveSteeringController::on_init()
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 0.3.1" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 0.3.2" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         try
@@ -369,6 +369,9 @@ namespace whi_swerve_steering_controller
             auto_declare<double>("angular.z.min_acceleration", NAN);
             auto_declare<double>("angular.z.max_jerk", NAN);
             auto_declare<double>("angular.z.min_jerk", NAN);
+
+            // tf prefix for multiple
+            auto_declare<std::string>("frame_prefix", std::string());
         }
         catch (const std::exception& e)
         {
@@ -436,8 +439,19 @@ namespace whi_swerve_steering_controller
         odometry_.setWheelsParams(radii, steerPositions);
         odometry_.setVelocityRollingWindowSize(get_node()->get_parameter("velocity_rolling_window_size").as_int());
 
-        odom_params_.odom_frame_id_ = get_node()->get_parameter("odom_frame_id").as_string();
-        odom_params_.base_frame_id_ = get_node()->get_parameter("base_frame_id").as_string();
+        auto framePrefix = get_node()->get_parameter("frame_prefix").as_string();
+        // Make sure prefix does not start with '/' and always ends with '/'
+        if (framePrefix.back() != '/')
+        {
+            framePrefix += "/";
+        }
+        if (framePrefix.front() == '/')
+        {
+            framePrefix.erase(0, 1);
+        }
+
+        odom_params_.odom_frame_id_ = framePrefix + get_node()->get_parameter("odom_frame_id").as_string();
+        odom_params_.base_frame_id_ = framePrefix + get_node()->get_parameter("base_frame_id").as_string();
 
         auto poseDiagonal = get_node()->get_parameter("pose_covariance_diagonal").as_double_array();
         std::copy(poseDiagonal.begin(), poseDiagonal.end(), odom_params_.pose_covariance_diagonal_.begin());
