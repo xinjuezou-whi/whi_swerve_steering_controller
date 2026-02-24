@@ -354,7 +354,7 @@ namespace whi_swerve_steering_controller
     controller_interface::CallbackReturn WhiSwerveSteeringController::on_init()
     {
         /// node version and copyright announcement
-        std::cout << "\nWHI swerve steering controller VERSION 1.3.1" << std::endl;
+        std::cout << "\nWHI swerve steering controller VERSION 1.3.2" << std::endl;
         std::cout << "Copyright © 2025-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
         try
@@ -382,8 +382,7 @@ namespace whi_swerve_steering_controller
             auto_declare<std::vector<double>>("twist_covariance_diagonal", std::vector<double>());
             auto_declare<bool>("enable_odom", odom_params_.enable_odom_);
             auto_declare<bool>("enable_odom_tf", odom_params_.enable_odom_tf_);
-            auto_declare<bool>("tf_frame_prefix_enable", true);
-            auto_declare<std::string>("tf_frame_prefix", std::string());
+            auto_declare<std::string>("frame_prefix", std::string());
 
             auto_declare<double>("cmd_vel_timeout", 0.5);
             auto_declare<bool>("publish_limited_velocity", publish_limited_velocity_);
@@ -492,30 +491,19 @@ namespace whi_swerve_steering_controller
         odometry_.setWheelsParams(radii, steerPositions);
         odometry_.setVelocityRollingWindowSize(get_node()->get_parameter("velocity_rolling_window_size").as_int());
 
-        odom_params_.odom_frame_id_ = get_node()->get_parameter("odom_frame_id").as_string();
-        odom_params_.base_frame_id_ = get_node()->get_parameter("base_frame_id").as_string();
-        // Append the tf prefix if there is one
-        bool tfPrefixEnable = get_node()->get_parameter("tf_frame_prefix_enable").as_bool();
-        std::string tfPrefix = get_node()->get_parameter("tf_frame_prefix").as_string();;
-        if (tfPrefixEnable)
+        auto framePrefix = get_node()->get_parameter("frame_prefix").as_string();
+        // Make sure prefix does not start with '/' and always ends with '/'
+        if (framePrefix.back() != '/')
         {
-            if (tfPrefix.empty())
-            {
-                tfPrefix = std::string(get_node()->get_namespace());
-            }
-
-            // Make sure prefix does not start with '/' and always ends with '/'
-            if (tfPrefix.back() != '/')
-            {
-                tfPrefix = tfPrefix + "/";
-            }
-            if (tfPrefix.front() == '/')
-            {
-                tfPrefix.erase(0, 1);
-            }
+            framePrefix += "/";
         }
-        odom_params_.odom_frame_id_ = tfPrefix + odom_params_.odom_frame_id_;
-        odom_params_.base_frame_id_ = tfPrefix + odom_params_.base_frame_id_;
+        if (framePrefix.front() == '/')
+        {
+            framePrefix.erase(0, 1);
+        }
+
+        odom_params_.odom_frame_id_ = framePrefix + get_node()->get_parameter("odom_frame_id").as_string();
+        odom_params_.base_frame_id_ = framePrefix + get_node()->get_parameter("base_frame_id").as_string();
 
         auto poseDiagonal = get_node()->get_parameter("pose_covariance_diagonal").as_double_array();
         std::copy(poseDiagonal.begin(), poseDiagonal.end(), odom_params_.pose_covariance_diagonal_.begin());
